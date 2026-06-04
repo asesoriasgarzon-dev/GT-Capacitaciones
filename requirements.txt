@@ -1,0 +1,15 @@
+streamlit
+pandas
+plotly
+pytz
+st-gsheets-connection
+reportlab
+streamlit-drawable-canvas
+Pillow
+openpyxl
+qrcode
+oauth2client
+gspread
+google-api-python-client
+google-auth
+google-auth-oauthlib
