@@ -35,7 +35,7 @@ from google.oauth2 import service_account
 st.set_page_config(
     page_title="REGISTRO DE ASISTENCIA DIGITAL",
     layout="centered",
-    page_icon="🌱"
+    page_icon="🏢"
 )
 
 # =============================================================================
@@ -1004,7 +1004,9 @@ if "rol" not in st.session_state:
     st.session_state.rol = None
 
 # Manejo de rol desde URL
-if 'rol_url' in locals() and rol_url and rol_url.lower() == "empleado":
+rol_url = st.query_params.get("rol", None)
+
+if rol_url and rol_url.lower() == "empleado":
     st.session_state.rol = "Empleado"
 
 if st.session_state.get("rol") is None:
@@ -1099,10 +1101,13 @@ if st.session_state.get("rol") is None:
     from io import BytesIO
 
     # Función unificada para logos
-    def logo_to_base64(img_pil):
-        buf = BytesIO()
-        img_pil.save(buf, format="PNG")
-        return base64.b64encode(buf.getvalue()).decode("utf-8")
+    def logo_to_base64(img):
+        try:
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            return base64.b64encode(buf.getvalue()).decode()
+        except:
+            return None
 
     # Generación segura de logos
     logo_cf_html = f'<img src="data:image/png;base64,{logo_to_base64(LOGOS["logo1"])}" class="hero-logo-img">' if "logo1" in LOGOS else "<div></div>"
