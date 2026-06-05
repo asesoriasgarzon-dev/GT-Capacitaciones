@@ -375,6 +375,43 @@ import zlib
 
 params = st.query_params
 
+# =========================
+# EMPRESA
+# =========================
+empresa_url = params.get(
+    "empresa",
+    "campofert"
+).lower()
+
+EMPRESAS = {
+
+    "campofert": {
+        "nombre": "CAMPOFERT",
+        "logo1": "logo_campofert.png",
+        "logo2": "logo_campolab.png",
+        "color": "#1B5E20"
+    },
+
+    "gt": {
+        "nombre": "GARZON & TORRES SAS",
+        "logo1": "logo_gt.png",
+        "logo2": None,
+        "color": "#0D47A1"
+    },
+
+    "mip": {
+        "nombre": "MIP",
+        "logo1": "logo_mip.png",
+        "logo2": None,
+        "color": "#6A1B9A"
+    }
+
+}
+
+EMPRESA_ACTIVA = EMPRESAS.get(
+    empresa_url,
+    EMPRESAS["campofert"]
+)
 # =============================================================================
 # FUNCIÓN PARA DESCOMPRIMIR RESUMEN
 # =============================================================================
