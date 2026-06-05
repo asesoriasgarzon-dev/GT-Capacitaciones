@@ -10,6 +10,8 @@ import plotly.express as px
 import time
 import zipfile
 from urllib.parse import unquote
+import base64
+import zlib
 from io import BytesIO
 from datetime import datetime
 from streamlit_drawable_canvas import st_canvas
@@ -369,10 +371,6 @@ os.makedirs(
 # =============================================================================
 # PARÁMETROS URL
 # =============================================================================
-from urllib.parse import unquote
-import base64
-import zlib
-
 params = st.query_params
 
 # =========================
@@ -512,10 +510,21 @@ if rol_url and st.session_state.rol is None:
 # =============================================================================
 @st.cache_resource(show_spinner=False)
 def cargar_logos():
+
     logos = {}
-    for clave, ruta in [("campofert", "logo_campofert.png"), ("campolab", "logo_campolab.png")]:
+
+    if EMPRESA_ACTIVA["logo1"]:
+        ruta = EMPRESA_ACTIVA["logo1"]
+
         if os.path.exists(ruta):
-            logos[clave] = Image.open(ruta).copy()
+            logos["logo1"] = Image.open(ruta).copy()
+
+    if EMPRESA_ACTIVA["logo2"]:
+        ruta = EMPRESA_ACTIVA["logo2"]
+
+        if os.path.exists(ruta):
+            logos["logo2"] = Image.open(ruta).copy()
+
     return logos
 
 LOGOS = cargar_logos()
@@ -768,7 +777,7 @@ def generar_pdf(datos, imagen_firma, imagen_foto,):
     p.rect(20, height - 125, width - 40, 5, fill=1, stroke=0)
 
     # Logos con transparencia correcta sobre fondo verde
-    for clave, x in [("campofert", 35), ("campolab", width - 130)]:
+    for clave, x in [("logo1", 35), ("logo2", width - 130)]:
         if clave in LOGOS:
             try:
                 img_logo = LOGOS[clave].convert("RGBA")
@@ -1096,8 +1105,8 @@ if st.session_state.get("rol") is None:
         return base64.b64encode(buf.getvalue()).decode("utf-8")
 
     # Generación segura de logos
-    logo_cf_html = f'<img src="data:image/png;base64,{logo_to_base64(LOGOS["campofert"])}" class="hero-logo-img">' if "campofert" in LOGOS else "<div></div>"
-    logo_cl_html = f'<img src="data:image/png;base64,{logo_to_base64(LOGOS["campolab"])}" class="hero-logo-img">' if "campolab" in LOGOS else "<div></div>"
+    logo_cf_html = f'<img src="data:image/png;base64,{logo_to_base64(LOGOS["logo1"])}" class="hero-logo-img">' if "logo1" in LOGOS else "<div></div>"
+    logo_cl_html = f'<img src="data:image/png;base64,{logo_to_base64(LOGOS["logo2"])}" class="hero-logo-img">' if "logo2" in LOGOS else "<div></div>"
 
     # 1. Lógica de paginación dinámica
     paso = st.session_state.get("paso", 0)
@@ -1199,13 +1208,13 @@ def logo_b64(img_pil):
 
 # Generación de logos limpia (sin cuadros blancos)
 logo_cf = (
-    f'<img src="data:image/png;base64,{logo_b64(LOGOS["campofert"])}" class="hero-logo-img">'
-    if "campofert" in LOGOS else ""
+    f'<img src="data:image/png;base64,{logo_b64(LOGOS["logo1"])}" class="hero-logo-img">'
+    if "logo1" in LOGOS else ""
 )
 
 logo_cl = (
-    f'<img src="data:image/png;base64,{logo_b64(LOGOS["campolab"])}" class="hero-logo-img">'
-    if "campolab" in LOGOS else ""
+    f'<img src="data:image/png;base64,{logo_b64(LOGOS["logo2"])}" class="hero-logo-img">'
+    if "logo2" in LOGOS else ""
 )
 
 paso = st.session_state.get("paso", 0)
@@ -1240,23 +1249,40 @@ if st.session_state.rol == "Empleado":
 
 else:
     with st.sidebar:
-        if "campofert" in LOGOS:
-            st.image(LOGOS["campofert"], width=180)
+
+        if "logo1" in LOGOS:
+            st.image(LOGOS["logo1"], width=180)
+
+        if "logo2" in LOGOS:
+            st.image(LOGOS["logo2"], width=120)
+
         st.markdown("## Panel Administrativo")
-        st.markdown("Gestión Humana / Campofert")
+        st.markdown(
+            f"Gestión Humana / {EMPRESA_ACTIVA['nombre']}"
+        )
+
         st.markdown("---")
-        menu = st.radio("Seleccione módulo", [
-            "Configurar Tema",
-            "Registro Asistencia",
-            "Lista Empleados",
-            "Cargar Base de Personal",
-            "Dashboard",
-            "Historial",
-            "Reportes",
-            "Gestor Certificados",
-        ])
+
+        menu = st.radio(
+            "Seleccione módulo",
+            [
+                "Configurar Tema",
+                "Registro Asistencia",
+                "Lista Empleados",
+                "Cargar Base de Personal",
+                "Dashboard",
+                "Historial",
+                "Reportes",
+                "Gestor Certificados",
+            ]
+        )
+
         st.markdown("---")
-        if st.button("🚪 Cerrar Sesión", use_container_width=True):
+
+        if st.button(
+            "🚪 Cerrar Sesión",
+            use_container_width=True
+        ):
             del st.session_state["rol"]
             st.rerun()
 # =============================================================================
