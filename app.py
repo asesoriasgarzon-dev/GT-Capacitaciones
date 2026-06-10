@@ -73,7 +73,7 @@ CSS_CORPORATIVO = """
         left: 0 !important;
         width: 100% !important;
         height: 100% !important;
-        background-image: url('https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/assets/Fondo_MIP.png') !important;
+        background-image: url('https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/assets/mip_1.png') !important;
         background-size: cover !important;
         background-position: center center !important;
         background-repeat: no-repeat !important;
