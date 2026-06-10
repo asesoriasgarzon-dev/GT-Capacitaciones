@@ -97,7 +97,7 @@ CSS_CORPORATIVO = """
                 rgba(255,255,255,0.75) 0%,
                 rgba(255,255,255,0.0) 30%),
 
-            url('https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/assets/mip_1.png');
+            url('https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/mip.png');
 
         background-repeat:
             no-repeat,
