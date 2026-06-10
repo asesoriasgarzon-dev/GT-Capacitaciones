@@ -837,13 +837,13 @@ if st.session_state.get("rol") is None:
         c1, c2 = st.columns(2)
 
         with c1:
-            if st.button("COLABORADOR", use_container_width=True):
+            if st.button("INGRESO COLABORADOR", use_container_width=True):
                 st.session_state.rol = "Empleado"
                 st.session_state.paso = 0
                 st.rerun()
 
         with c2:
-            if st.button("ADMINISTRADOR", use_container_width=True):
+            if st.button("INGRESO     ADMINISTRADOR", use_container_width=True):
                 st.session_state.esperando_clave = True
                 st.rerun()
 
@@ -874,7 +874,7 @@ if st.session_state.get("rol") is None:
                     st.rerun()
 
         st.markdown(
-            '<div class="footer-premium">MEZCLAS INTEGRALES PROGRAMADAS S.A.S • Versión 2026</div>',
+            '''<div class="footer-premium"> Plataforma Corporativa de Formación y Control de Asistencia<br>© 2026 Mezclas Integrales Programadas S.A.S.</div>''',
             unsafe_allow_html=True
         )
 
