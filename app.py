@@ -914,7 +914,7 @@ if st.session_state.rol == "Admin":
         st.markdown("<h2 style='color:white;'>⚙️ Panel Administrativo</h2>", unsafe_allow_html=True)
         opcion_admin = st.radio(
             "Seleccione un módulo:",
-            ["Generar Enlace / QR", "Base de Empleados", "Cargar Personal", "Dashboard", "Historial"]
+            ["Generar Enlace", "Base de Empleados", "Cargar Personal", "Dashboard", "Historial"]
         )
         st.markdown("---")
         if st.button("🚪 Cerrar Sesión", use_container_width=True):
@@ -945,93 +945,266 @@ if st.session_state.rol == "Admin":
                 st.code(url_final, language="text")                
             else:
                 st.error("Debe ingresar un tema.")
-
-    # ───────────────────────────────────────────────────────────────
-    # MÓDULO: BASE DE EMPLEADOS
-    # ───────────────────────────────────────────────────────────────
-    elif opcion_admin == "Base de Empleados":
-        st.markdown("### 👥 Base de Empleados")
-        df_emp = obtener_datos()
-
-        if not df_emp.empty:
-            st.write(f"Total colaboradores: **{len(df_emp)}**")
-            st.dataframe(df_emp, use_container_width=True, hide_index=True)
-        else:
-            st.warning("No existe archivo empleados.xlsx")
-
-    # ───────────────────────────────────────────────────────────────
-    # MÓDULO: CARGA MASIVA
-    # ───────────────────────────────────────────────────────────────
-    elif opcion_admin == "Cargar Personal":
-        st.markdown("### 📤 Cargar o Actualizar Base de Empleados")
-
-        archivo = st.file_uploader("Subir archivo Excel (.xlsx):", type=["xlsx"])
-
-        if archivo is not None:
-            try:
-                df_test = pd.read_excel(archivo, engine="openpyxl")
-                if "ID" in df_test.columns and "Nombre" in df_test.columns:
-                    with open("empleados.xlsx", "wb") as f:
-                        f.write(archivo.getbuffer())
-                    obtener_datos.clear()
-                    st.success("Base de empleados actualizada correctamente.")
-                else:
-                    st.error("El archivo debe contener las columnas 'ID' y 'Nombre'.")
-            except Exception as e:
-                st.error(f"Error procesando archivo: {e}")
-
-    # ───────────────────────────────────────────────────────────────
-    # MÓDULO: DASHBOARD
-    # ───────────────────────────────────────────────────────────────
-    elif opcion_admin == "Dashboard":
-        st.markdown("### 📊 Dashboard Analítico")
-
-        df_asist = leer_asistencias()
-
-        if not df_asist.empty:
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Registros", len(df_asist))
-            c2.metric("Colaboradores Únicos", df_asist["ID"].nunique())
-            c3.metric("Temas Dictados", df_asist["Tema"].nunique())
-
-            st.markdown("---")
-
-            df_temas = df_asist["Tema"].value_counts().reset_index()
-            df_temas.columns = ["Tema", "Cantidad"]
-
-            fig = px.bar(df_temas, x="Cantidad", y="Tema", orientation="h", color_discrete_sequence=["#0A2A43"])
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No hay registros para mostrar.")
-
-    # ───────────────────────────────────────────────────────────────
-    # MÓDULO: HISTORIAL
-    # ───────────────────────────────────────────────────────────────
-    elif opcion_admin == "Historial":
-        st.markdown("### 🗄️ Historial de Registros")
-
-        df_asist = leer_asistencias()
-
-        if not df_asist.empty:
-            filtro_tema = st.selectbox("Filtrar por tema:", ["TODOS"] + list(df_asist["Tema"].unique()))
-
+        # ───────────────────────────────────────────────────────────────
+        # MÓDULO: DASHBOARD ADMINISTRATIVO
+        # ───────────────────────────────────────────────────────────────
+        if opcion_admin == "Dashboard":
+            st.markdown("## 📊 Dashboard de Asistencias MIP")
+    
+            df_asist = leer_asistencias()
+    
+            if df_asist.empty:
+                st.warning("No hay registros de asistencia aún.")
+                st.stop()
+    
+            # Normalizar columnas
+            df_asist["Fecha"] = pd.to_datetime(df_asist["Fecha"], errors="coerce")
+            df_asist["Año"] = df_asist["Fecha"].dt.year
+            df_asist["Mes"] = df_asist["Fecha"].dt.month
+            df_asist["Día"] = df_asist["Fecha"].dt.day
+    
+            # Filtros
+            st.markdown("### 🔎 Filtros")
+    
+            col1, col2, col3 = st.columns(3)
+    
+            with col1:
+                filtro_empresa = st.selectbox(
+                    "Empresa:",
+                    ["Todas"] + sorted(df_asist["Empresa"].dropna().unique().tolist())
+                )
+    
+            with col2:
+                filtro_tipo = st.selectbox(
+                    "Tipo de actividad:",
+                    ["Todos"] + sorted(df_asist["Tipo"].dropna().unique().tolist())
+                )
+    
+            with col3:
+                filtro_tema = st.selectbox(
+                    "Tema:",
+                    ["Todos"] + sorted(df_asist["Tema"].dropna().unique().tolist())
+                )
+    
+            # Aplicar filtros
             df_filtrado = df_asist.copy()
-            if filtro_tema != "TODOS":
+    
+            if filtro_empresa != "Todas":
+                df_filtrado = df_filtrado[df_filtrado["Empresa"] == filtro_empresa]
+    
+            if filtro_tipo != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["Tipo"] == filtro_tipo]
+    
+            if filtro_tema != "Todos":
                 df_filtrado = df_filtrado[df_filtrado["Tema"] == filtro_tema]
-
-            st.write(f"Mostrando **{len(df_filtrado)}** registros:")
-            st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
-
-            buf_excel = BytesIO()
-            with pd.ExcelWriter(buf_excel, engine="openpyxl") as writer:
-                df_filtrado.to_excel(writer, index=False, sheet_name="Asistencias")
-
+    
+            # KPIs
+            st.markdown("### 📌 Indicadores")
+    
+            colA, colB, colC = st.columns(3)
+    
+            with colA:
+                st.metric("Total Registros", len(df_filtrado))
+    
+            with colB:
+                st.metric("Empresas Únicas", df_filtrado["Empresa"].nunique())
+    
+            with colC:
+                st.metric("Temas Únicos", df_filtrado["Tema"].nunique())
+    
+            # Gráfico por empresa
+            st.markdown("### 🏢 Registros por Empresa")
+            graf1 = df_filtrado.groupby("Empresa").size().reset_index(name="Total")
+            fig1 = px.bar(graf1, x="Empresa", y="Total", color="Empresa")
+            st.plotly_chart(fig1, use_container_width=True)
+    
+            # Gráfico por tema
+            st.markdown("### 📘 Registros por Tema")
+            graf2 = df_filtrado.groupby("Tema").size().reset_index(name="Total")
+            fig2 = px.bar(graf2, x="Tema", y="Total", color="Tema")
+            st.plotly_chart(fig2, use_container_width=True)
+    
+            # Tabla
+            st.markdown("### 📄 Registros Detallados")
+            st.dataframe(df_filtrado, use_container_width=True)
+    
+            # Exportación
+            csv = df_filtrado.to_csv(index=False).encode("utf-8")
             st.download_button(
-                label="📥 Descargar Excel",
-                data=buf_excel.getvalue(),
-                file_name=f"Asistencias_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                "📥 Descargar CSV",
+                data=csv,
+                file_name="asistencias_filtradas.csv",
+                mime="text/csv"
             )
-        else:
-            st.info("No hay registros disponibles.")
+
+        # ───────────────────────────────────────────────────────────────
+        # MÓDULO: HISTORIAL / GESTOR DE CERTIFICADOS
+        # ───────────────────────────────────────────────────────────────
+        if opcion_admin == "Historial":
+            st.markdown("## 🗂️ Historial de Asistencias y Certificados")
+    
+            df_asist = leer_asistencias()
+    
+            if df_asist.empty:
+                st.warning("No hay registros disponibles.")
+                st.stop()
+    
+            # Normalizar
+            df_asist["Fecha"] = pd.to_datetime(df_asist["Fecha"], errors="coerce")
+    
+            # Filtros
+            st.markdown("### 🔎 Filtros de búsqueda")
+    
+            col1, col2, col3 = st.columns(3)
+    
+            with col1:
+                filtro_id = st.text_input("Buscar por Cédula:")
+    
+            with col2:
+                filtro_nombre = st.text_input("Buscar por Nombre:")
+    
+            with col3:
+                filtro_tema = st.text_input("Buscar por Tema:")
+    
+            df_filtrado = df_asist.copy()
+    
+            if filtro_id.strip():
+                df_filtrado = df_filtrado[df_filtrado["ID"].astype(str).str.contains(filtro_id.strip(), case=False)]
+    
+            if filtro_nombre.strip():
+                df_filtrado = df_filtrado[df_filtrado["Nombre"].str.contains(filtro_nombre.strip(), case=False)]
+    
+            if filtro_tema.strip():
+                df_filtrado = df_filtrado[df_filtrado["Tema"].str.contains(filtro_tema.strip(), case=False)]
+    
+            st.markdown("### 📄 Resultados")
+            st.dataframe(df_filtrado, use_container_width=True)
+    
+            # Selección de registro
+            st.markdown("### 📌 Seleccionar un registro para gestionar")
+    
+            lista_ids = df_filtrado["ID"].astype(str).unique().tolist()
+    
+            if not lista_ids:
+                st.info("No hay registros con los filtros aplicados.")
+                st.stop()
+    
+            id_sel = st.selectbox("Seleccione un documento:", lista_ids)
+    
+            fila = df_filtrado[df_filtrado["ID"].astype(str) == id_sel].iloc[0].to_dict()
+    
+            st.markdown(f"### 🧾 Certificado de **{fila['Nombre']}**")
+    
+            # Botón para regenerar PDF
+            if st.button("🔄 Regenerar Certificado PDF"):
+                datos = {
+                    "ID": fila["ID"],
+                    "Nombre": fila["Nombre"],
+                    "Empresa": fila["Empresa"],
+                    "Cargo": fila.get("Cargo", "NO REGISTRA"),
+                    "Tema": fila["Tema"],
+                    "Resumen": fila.get("Resumen", ""),
+                    "Fecha": fila["Fecha"].strftime("%Y-%m-%d %H:%M:%S"),
+                    "Tipo": fila.get("Tipo", "CAPACITACIÓN")
+                }
+    
+                pdf_buffer = generar_pdf(datos, None, None)
+    
+                st.download_button(
+                    "Descargar PDF regenerado",
+                    data=pdf_buffer,
+                    file_name=f"Certificado_{fila['ID']}.pdf",
+                    mime="application/pdf"
+                )
+    
+                st.success("Certificado regenerado correctamente.")
+    
+            # Reenvío por correo
+            if st.button("📧 Reenviar Certificado por Correo"):
+                try:
+                    enviar_respaldo_async(fila, b"")
+                    st.success("Correo reenviado correctamente.")
+                except:
+                    st.error("No fue posible reenviar el correo.")
+    
+            # Exportar ZIP
+            st.markdown("### 📦 Exportar certificados filtrados")
+    
+            if st.button("Descargar ZIP"):
+                zip_buffer = BytesIO()
+    
+                with zipfile.ZipFile(zip_buffer, "w") as z:
+                    for _, row in df_filtrado.iterrows():
+                        nombre = f"Certificado_{row['ID']}.pdf"
+                        z.writestr(nombre, f"Certificado de {row['Nombre']} - {row['Tema']}")
+    
+                zip_buffer.seek(0)
+    
+                st.download_button(
+                    "📥 Descargar ZIP",
+                    data=zip_buffer,
+                    file_name="certificados.zip",
+                    mime="application/zip"
+                )
+        # ───────────────────────────────────────────────────────────────
+        # MÓDULO: CONFIGURACIÓN INTERNA / HERRAMIENTAS DEL ADMIN
+        # ───────────────────────────────────────────────────────────────
+        if opcion_admin == "Configuración":
+            st.markdown("## ⚙️ Configuración Interna del Sistema MIP")
+    
+            st.info("Este módulo contiene herramientas internas para mantenimiento y diagnóstico del sistema.")
+    
+            # --------------------------
+            # LIMPIAR CACHÉ
+            # --------------------------
+            st.markdown("### 🧹 Limpieza de Caché")
+    
+            if st.button("Limpiar caché de Streamlit"):
+                st.cache_data.clear()
+                st.cache_resource.clear()
+                st.success("Caché limpiada correctamente.")
+                st.rerun()
+    
+            # --------------------------
+            # LOGS INTERNOS
+            # --------------------------
+            st.markdown("### 📜 Logs Internos")
+    
+            if not st.session_state.logs:
+                st.write("No hay logs registrados aún.")
+            else:
+                for log in st.session_state.logs[-50:]:
+                    st.text(f"- {log}")
+    
+            # --------------------------
+            # ESTADO DE SESIÓN
+            # --------------------------
+            st.markdown("### 🧠 Estado de Sesión")
+    
+            st.json({
+                "rol": st.session_state.get("rol"),
+                "paso": st.session_state.get("paso"),
+                "tema_actual": st.session_state.get("tema_actual"),
+                "tipo_actividad": st.session_state.get("tipo_actividad"),
+                "resumen_actual": st.session_state.get("resumen_actual"),
+                "actividad_seleccionada": st.session_state.get("actividad_seleccionada")
+            })
+    
+            # --------------------------
+            # REINICIAR FLUJO DEL EMPLEADO
+            # --------------------------
+            st.markdown("### 🔄 Reiniciar Flujo del Empleado")
+    
+            if st.button("Reiniciar pasos del flujo"):
+                st.session_state.paso = 0
+                st.success("Flujo reiniciado correctamente.")
+    
+            # --------------------------
+            # INFORMACIÓN DEL SISTEMA
+            # --------------------------
+            st.markdown("### 🖥️ Información del Sistema")
+    
+            st.write(f"**Versión de Python:** {os.sys.version}")
+            st.write(f"**Zona horaria:** {datetime.now().astimezone().tzinfo}")
+            st.write(f"**Hora actual:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
