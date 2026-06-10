@@ -69,7 +69,7 @@ CSS_CORPORATIVO = """
         background-color: #F7FAFC !important;
     
         background-image:
-            url("https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/mip.png") !important;
+            url("https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/campo_mip.png") !important;
     
         background-repeat: no-repeat !important;
     
