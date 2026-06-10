@@ -235,7 +235,7 @@ section.main > div {
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 EMAIL_USER = "ghmip2026@gmail.com"
-EMAIL_PASS = "xitl gjvj reek ydxc"
+EMAIL_PASS = "xitlgjvjreekydxc"
 ADMIN_PASS = st.secrets.get("admin_password", "mip2026")
 
 CARPETA_CERTIFICADOS = "certificados"
@@ -252,42 +252,80 @@ EMPRESA_ACTIVA = {
 }
 
 # =============================================================================
-# UTILIDADES
+# PARÁMETROS URL
+# =============================================================================
+from urllib.parse import unquote
+import base64
+import zlib
+
+params = st.query_params
+
+# =============================================================================
+# FUNCIÓN PARA DESCOMPRIMIR RESUMEN (si algún día lo usas)
 # =============================================================================
 def descomprimir_resumen(texto):
     try:
         texto_bytes = base64.urlsafe_b64decode(texto.encode())
-        return zlib.decompress(texto_bytes).decode("utf-8")
+        texto_final = zlib.decompress(texto_bytes).decode("utf-8")
+        return texto_final
     except:
         return ""
 
-params = st.query_params
-
+# =========================
+# TEMA
+# =========================
 tema_desde_url = unquote(params.get("tema", ""))
 if tema_desde_url:
     st.session_state.tema_actual = tema_desde_url.strip().upper()
+
 if not st.session_state.get("tema_actual"):
     st.session_state.tema_actual = "CAPACITACIÓN GENERAL"
 
+tema_actual = st.session_state.tema_actual
+
+# =========================
+# RESUMEN
+# =========================
 resumen_comprimido = params.get("resumen", "")
 if resumen_comprimido:
     st.session_state.resumen_actual = descomprimir_resumen(resumen_comprimido).strip()
+
 if not st.session_state.get("resumen_actual"):
     st.session_state.resumen_actual = ""
 
+resumen_actual = st.session_state.resumen_actual
+
+# =========================
+# TIPO
+# =========================
 tipo_desde_url = unquote(params.get("tipo", ""))
 if tipo_desde_url:
     st.session_state.tipo_actividad = tipo_desde_url.strip()
+
 if not st.session_state.get("tipo_actividad"):
     st.session_state.tipo_actividad = "CAPACITACIÓN"
 
+tipo_actividad = st.session_state.tipo_actividad
+
+# =========================
+# ROL
+# =========================
+rol_url = params.get("rol")
+if rol_url and st.session_state.rol is None:
+    if rol_url.lower() == "empleado":
+        st.session_state.rol = "Empleado"
+    elif rol_url.lower() == "admin":
+        st.session_state.rol = "Admin"
+
+# =============================================================================    
+# LOGOS EN CACHÉ (se leen una sola vez)
+# =============================================================================
 @st.cache_resource(show_spinner=False)
 def cargar_logos():
     logos = {}
-    if os.path.exists(EMPRESA_ACTIVA["logo1"]):
-        logos["logo1"] = Image.open(EMPRESA_ACTIVA["logo1"]).copy()
-    if os.path.exists(EMPRESA_ACTIVA["logo2"]):
-        logos["logo2"] = Image.open(EMPRESA_ACTIVA["logo2"]).copy()
+    for clave, ruta in [("mip", "Logo_Mip-1.png")]:
+        if os.path.exists(ruta):
+            logos[clave] = Image.open(ruta).copy()
     return logos
 
 LOGOS = cargar_logos()
@@ -297,28 +335,48 @@ LOGOS = cargar_logos()
 # =============================================================================
 @st.cache_data(ttl=60, show_spinner=False)
 def obtener_datos():
+    """Carga empleados.xlsx (si existe)."""
     ruta = "empleados.xlsx"
     if os.path.exists(ruta):
         try:
             df = pd.read_excel(ruta, engine="openpyxl", dtype={"ID": str})
             df.columns = df.columns.str.strip()
             return df
-        except:
-            return pd.DataFrame()
+        except Exception as e:
+            st.error(f"Error al leer empleados.xlsx: {e}")
     return pd.DataFrame()
 
 @st.cache_data(ttl=60, show_spinner=False)
 def leer_asistencias():
+    """Lectura de asistencias desde Google Sheets."""
     try:
         df = conn.read(worksheet="Hoja")
         return df if df is not None else pd.DataFrame()
-    except:
+    except Exception as e:
+        st.error(f"Error leyendo asistencias: {e}")
         return pd.DataFrame()
 
 def guardar_en_google_sheets(datos):
+    """Guarda una asistencia con reintentos para evitar colisiones."""
+    import time
     try:
-        nueva_fila = pd.DataFrame([datos])
-        for _ in range(4):
+        if not datos.get("ID") or not datos.get("Nombre"):
+            st.error("Datos incompletos")
+            return False
+
+        nueva_fila = pd.DataFrame([{
+            "Fecha":   datos.get("Fecha"),
+            "ID":      str(datos.get("ID")),
+            "Nombre":  datos.get("Nombre"),
+            "Empresa": datos.get("Empresa"),
+            "Cargo":   datos.get("Cargo", "NO REGISTRA"),
+            "Tema":    datos.get("Tema"),
+            "RutaPDF": datos.get("RutaPDF", ""),
+            "LinkPDF": datos.get("LinkPDF", ""),
+            "Tipo":    datos.get("Tipo", "CAPACITACIÓN")
+        }])
+
+        for intento in range(4):
             try:
                 actual = conn.read(worksheet="Hoja", ttl=0)
                 if actual is None or actual.empty:
@@ -326,58 +384,77 @@ def guardar_en_google_sheets(datos):
                 else:
                     actual = actual.dropna(how="all")
                     df_final = pd.concat([actual, nueva_fila], ignore_index=True)
+
                 conn.update(worksheet="Hoja", data=df_final)
                 leer_asistencias.clear()
                 return True
-            except:
+
+            except Exception:
                 time.sleep(random.uniform(1, 4))
-        return False
-    except:
+
         return False
 
+    except Exception as e:
+        st.error(f"Error guardando en Google Sheets: {e}")
+        return False
+
+
 # =============================================================================
-# ENVÍO DE CORREO CORPORATIVO MIP
+# FUNCIÓN DE ENVÍO DE CORREO (ASÍNCRONO)
 # =============================================================================
 def enviar_respaldo_async(datos, pdf_bytes):
 
     def _proceso_envio():
         try:
+            print("📩 Enviando respaldo a RRHH...")
+
             msg = MIMEMultipart()
             msg['From'] = EMAIL_USER
             msg['To'] = EMAIL_USER
-            msg['Subject'] = f"📄 Registro de Asistencia - {datos['Nombre']}"
+            msg['Subject'] = f"📄 Asistencia registrada: {datos['Nombre']} - {datos['Tema']}"
 
             cuerpo = f"""
             <html>
             <body style="font-family: Arial;">
                 <h2 style="color:#0A2A43;">📋 Respaldo de Asistencia</h2>
+
                 <p><b>Empleado:</b> {datos['Nombre']}</p>
                 <p><b>Cédula:</b> {datos['ID']}</p>
                 <p><b>Empresa:</b> {datos['Empresa']}</p>
                 <p><b>Cargo:</b> {datos.get('Cargo', 'NO REGISTRA')}</p>
                 <p><b>Tema:</b> {datos['Tema']}</p>
                 <p><b>Fecha:</b> {datos['Fecha']}</p>
+
                 <hr>
-                <small>Enviado automáticamente por MEZCLAS INTEGRALES PROGRAMADAS S.A.S.</small>
+                <small>Enviado automáticamente desde MIP</small>
             </body>
             </html>
             """
 
             msg.attach(MIMEText(cuerpo, 'html'))
 
-            adj = MIMEBase('application', 'octet-stream')
-            adj.set_payload(pdf_bytes)
-            encoders.encode_base64(adj)
-            adj.add_header('Content-Disposition', f"attachment; filename=Certificado_{datos['ID']}.pdf")
-            msg.attach(adj)
+            # PDF adjunto
+            adjunto = MIMEBase('application', 'octet-stream')
+            adjunto.set_payload(pdf_bytes)
+            encoders.encode_base64(adjunto)
+            adjunto.add_header(
+                'Content-Disposition',
+                f"attachment; filename=Certificado_{datos['ID']}.pdf"
+            )
+            msg.attach(adjunto)
 
-            server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+            # Envío
+            server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=30)
             server.login(EMAIL_USER, EMAIL_PASS)
             server.sendmail(EMAIL_USER, [EMAIL_USER], msg.as_string())
             server.quit()
 
+            print(f"✅ CORREO ENVIADO para {datos['ID']}")
+
         except Exception as e:
-            print("❌ Error enviando correo:", e)
+            import traceback
+            print("❌ ERROR EN CORREO:")
+            print(traceback.format_exc())
 
     threading.Thread(target=_proceso_envio, daemon=True).start()
 
@@ -387,10 +464,12 @@ def enviar_respaldo_async(datos, pdf_bytes):
 def subir_pdf_drive(pdf_buffer, nombre_archivo):
     try:
         SCOPES = ['https://www.googleapis.com/auth/drive']
+
         creds = service_account.Credentials.from_service_account_info(
             dict(st.secrets["connections"]["gsheets"]),
             scopes=SCOPES
         )
+
         service = build('drive', 'v3', credentials=creds)
 
         file_metadata = {
@@ -398,7 +477,11 @@ def subir_pdf_drive(pdf_buffer, nombre_archivo):
             'parents': [st.secrets["DRIVE_FOLDER_ID"]]
         }
 
-        media = MediaIoBaseUpload(pdf_buffer, mimetype='application/pdf', resumable=True)
+        media = MediaIoBaseUpload(
+            pdf_buffer,
+            mimetype='application/pdf',
+            resumable=True
+        )
 
         archivo = service.files().create(
             body=file_metadata,
@@ -406,87 +489,99 @@ def subir_pdf_drive(pdf_buffer, nombre_archivo):
             fields='id, webViewLink'
         ).execute()
 
+        print(f"✅ PDF SUBIDO A DRIVE: {nombre_archivo}")
         return archivo
 
     except Exception as e:
-        print("❌ Error subiendo PDF a Drive:", e)
+        print(f"❌ ERROR GOOGLE DRIVE: {e}")
         return None
 
 # =============================================================================
-# GENERACIÓN DE PDF CORPORATIVO MIP (AZUL)
+# GENERACIÓN DE PDF MIP
 # =============================================================================
-def hex_to_rgb(hex_color):
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16)/255 for i in (0, 2, 4))
-
 def generar_pdf(datos, imagen_firma, imagen_foto):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
 
-    azul  = hex_to_rgb("#0A2A43")
-    azul2 = hex_to_rgb("#1E88E5")
-    azul3 = hex_to_rgb("#42A5F5")
-    gris  = (0.96, 0.96, 0.96)
+    azul_oscuro = (0.04, 0.16, 0.26)
+    azul_medio  = (0.12, 0.53, 0.90)
+    azul_claro  = (0.26, 0.65, 0.96)
+    gris_fondo  = (0.96, 0.97, 0.98)
 
     # Fondo
     p.setFillColorRGB(1, 1, 1)
     p.rect(0, 0, width, height, fill=1, stroke=0)
 
     # Marco
-    p.setStrokeColorRGB(*azul)
+    p.setStrokeColorRGB(*azul_oscuro)
     p.setLineWidth(1.4)
     p.roundRect(20, 20, width - 40, height - 40, 14)
 
     # Encabezado
-    p.setFillColorRGB(*azul)
+    p.setFillColorRGB(*azul_oscuro)
     p.roundRect(20, height - 125, width - 40, 105, 14, fill=1, stroke=0)
 
-    p.setFillColorRGB(*azul3)
+    # Línea decorativa
+    p.setFillColorRGB(*azul_claro)
     p.rect(20, height - 125, width - 40, 5, fill=1, stroke=0)
 
     # Logos
-    for clave, x in [("logo1", 35), ("logo2", width - 130)]:
+    for clave, x in [("mip", 35)]:
         if clave in LOGOS:
             try:
                 img_logo = LOGOS[clave].convert("RGBA")
                 buf_logo = BytesIO()
                 img_logo.save(buf_logo, format="PNG")
                 buf_logo.seek(0)
-                p.drawImage(ImageReader(buf_logo), x, height - 112, width=95, height=72, preserveAspectRatio=True, mask='auto')
-            except:
-                pass
+
+                p.drawImage(
+                    ImageReader(buf_logo),
+                    x, height - 112,
+                    width=110, height=72,
+                    preserveAspectRatio=True,
+                    mask='auto'
+                )
+            except Exception as ex:
+                print(f"[PDF LOGO] {ex}")
 
     # Título
     p.setFillColorRGB(1, 1, 1)
     p.setFont("Helvetica-Bold", 18)
     p.drawCentredString(width / 2, height - 80, "CERTIFICADO DE ASISTENCIA")
 
-    # Datos principales
+    # Texto central
     p.setFillColorRGB(0, 0, 0)
     p.setFont("Helvetica", 12)
     p.drawCentredString(width / 2, 610, "Se certifica que:")
 
-    p.setFillColorRGB(*azul)
+    p.setFillColorRGB(*azul_oscuro)
     p.setFont("Helvetica-Bold", 24)
     p.drawCentredString(width / 2, 575, datos["Nombre"].upper())
 
     p.setFillColorRGB(0, 0, 0)
     p.setFont("Helvetica", 12)
-    p.drawCentredString(width / 2, 545, f"Identificado(a) con documento No. {datos['ID']} asistió a:")
+    p.drawCentredString(
+        width / 2,
+        545,
+        f"Identificado(a) con documento No. {datos['ID']} asistió a:"
+    )
 
-    # Bloque resumen
+    # Bloque de capacitación
     resumen = datos.get("Resumen", "")
     tipo    = datos.get("Tipo", "CAPACITACIÓN")
+
     alto_rect = 125 if resumen else 100
 
-    p.setFillColorRGB(*gris)
+    p.setFillColorRGB(*gris_fondo)
     p.roundRect(60, 405, width - 120, alto_rect, 10, fill=1, stroke=0)
 
-    p.setFillColorRGB(*azul)
+    # Tipo
+    p.setFillColorRGB(*azul_oscuro)
     p.setFont("Helvetica-Bold", 9)
     p.drawString(80, 405 + alto_rect - 14, f"{tipo}:")
 
+    # Tema
     p.setFillColorRGB(0, 0, 0)
     p.setFont("Helvetica-Bold", 12)
     p.drawString(80, 405 + alto_rect - 30, datos["Tema"])
@@ -495,6 +590,7 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
     if resumen:
         p.setFont("Helvetica", 9)
         p.setFillColorRGB(0.3, 0.3, 0.3)
+
         palabras = resumen.split()
         linea = ""
         y_res = 405 + alto_rect - 48
@@ -511,14 +607,15 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
         if linea:
             p.drawString(80, y_res, linea)
 
-    # Datos finales
+    # Datos
     p.setFont("Helvetica", 11)
     p.drawString(80, 385, f"Empresa: {datos['Empresa']}")
     p.drawString(80, 365, f"Cargo: {datos.get('Cargo', 'NO REGISTRA')}")
     p.drawString(80, 345, f"Fecha Registro: {datos['Fecha']}")
 
-    # Foto
     base_y = 185
+
+    # Foto
     if imagen_foto is not None:
         try:
             img = Image.open(imagen_foto).convert("RGB")
@@ -526,23 +623,31 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
             p.drawImage(ImageReader(img), 75, base_y, width=110, height=110)
             p.setFont("Helvetica", 8)
             p.drawCentredString(130, base_y - 12, "Validación de Registro")
-        except:
-            pass
+        except Exception as ex:
+            print(f"[PDF FOTO] {ex}")
 
     # Firma
     if imagen_firma is not None:
         try:
-            p.drawImage(ImageReader(imagen_firma), width - 255, base_y + 28, width=145, height=55, preserveAspectRatio=True)
-        except:
-            pass
+            p.drawImage(
+                ImageReader(imagen_firma),
+                width - 255,
+                base_y + 28,
+                width=145,
+                height=55,
+                preserveAspectRatio=True,
+            )
+        except Exception as ex:
+            print(f"[PDF FIRMA] {ex}")
 
-    p.setStrokeColorRGB(*azul)
+    p.setStrokeColorRGB(*azul_oscuro)
     p.line(width - 275, base_y + 18, width - 95, base_y + 18)
+
     p.setFont("Helvetica-Bold", 10)
     p.drawCentredString(width - 185, base_y + 3, "Firma Autorizada")
 
     # Pie
-    p.setFillColorRGB(*azul2)
+    p.setFillColorRGB(*azul_medio)
     p.roundRect(20, 20, width - 40, 25, 0, fill=1, stroke=0)
 
     p.setFillColorRGB(1, 1, 1)
@@ -552,6 +657,7 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
     p.showPage()
     p.save()
     buffer.seek(0)
+
     return buffer
 
 # =============================================================================
