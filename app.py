@@ -61,11 +61,17 @@ CSS_CORPORATIVO = """
         font-family: 'Century Gothic', 'CenturyGothic', 'Nunito', 'Apple Gothic', sans-serif !important;
     }
 
-    .stApp { 
-        background-color: #F4F7FA !important;
+    /* ==========================================================
+       FONDO PRINCIPAL
+       ========================================================== */
+    .stApp {
+        background-color: #F7FAFC !important;
         position: relative !important;
     }
 
+    /* ==========================================================
+       LOGO CORPORATIVO MIP COMO MARCA DE AGUA
+       ========================================================== */
     .stApp::before {
         content: '' !important;
         position: fixed !important;
@@ -73,86 +79,201 @@ CSS_CORPORATIVO = """
         left: 0 !important;
         width: 100% !important;
         height: 100% !important;
-        background-image: url('https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/assets/mip_1.png') !important;
-        background-size: cover !important;
-        background-position: center center !important;
-        background-repeat: no-repeat !important;
-        opacity: 0.35 !important;
+
+        background-image:
+            radial-gradient(circle at 25% 25%,
+                rgba(255,255,255,0.95) 0%,
+                rgba(255,255,255,0.0) 35%),
+
+            radial-gradient(circle at 75% 20%,
+                rgba(255,255,255,0.85) 0%,
+                rgba(255,255,255,0.0) 30%),
+
+            radial-gradient(circle at 15% 80%,
+                rgba(255,255,255,0.75) 0%,
+                rgba(255,255,255,0.0) 35%),
+
+            radial-gradient(circle at 85% 75%,
+                rgba(255,255,255,0.75) 0%,
+                rgba(255,255,255,0.0) 30%),
+
+            url('https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/assets/mip_1.png');
+
+        background-repeat:
+            no-repeat,
+            no-repeat,
+            no-repeat,
+            no-repeat,
+            no-repeat;
+
+        background-position:
+            center center,
+            center center,
+            center center,
+            center center,
+            center center;
+
+        background-size:
+            100% 100%,
+            100% 100%,
+            100% 100%,
+            100% 100%,
+            650px;
+
+        opacity: 0.05 !important;
+
+        filter: blur(0.5px);
+
         z-index: 0 !important;
         pointer-events: none !important;
     }
 
+    /* Mantener contenido encima del fondo */
     .stApp > * {
         position: relative !important;
         z-index: 1 !important;
     }
-    
-    [data-testid="stSidebar"] { background-color: #0A2A43; }
-    [data-testid="stSidebar"] * { color: #FFFFFF !important; }
-    
+
+    /* ==========================================================
+       SIDEBAR
+       ========================================================== */
+    [data-testid="stSidebar"] {
+        background-color: #0A2A43 !important;
+    }
+
+    [data-testid="stSidebar"] * {
+        color: #FFFFFF !important;
+    }
+
+    /* ==========================================================
+       BOTONES
+       ========================================================== */
     .stButton > button {
-        background: linear-gradient(135deg,#0A2A43,#1E88E5) !important; 
-        color: white !important; 
+        background: linear-gradient(
+            135deg,
+            #0A2A43,
+            #1565C0,
+            #1E88E5
+        ) !important;
+
+        color: white !important;
         border: none !important;
-        border-radius: 8px !important; 
-        font-weight: 900 !important; 
-        font-size: 18px !important; 
-        padding: 0.6rem 1.5rem !important;
+        border-radius: 10px !important;
+
+        font-weight: 900 !important;
+        font-size: 18px !important;
+
+        padding: 0.70rem 1.50rem !important;
+
         letter-spacing: 1px !important;
         text-transform: uppercase !important;
+
+        box-shadow:
+            0 8px 18px rgba(30,136,229,.25) !important;
+
+        transition: all .25s ease !important;
     }
 
-    .stButton > button:hover { 
-        background-color: #42A5F5 !important; 
-        color: #0A2A43 !important;
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        background: linear-gradient(
+            135deg,
+            #1E88E5,
+            #42A5F5
+        ) !important;
+
+        color: white !important;
     }
 
+    /* ==========================================================
+       TITULOS
+       ========================================================== */
     h1, h2, h3 {
-        color: #0A2A43;
+        color: #0A2A43 !important;
         font-weight: 800 !important;
-        letter-spacing: 1px;
+        letter-spacing: 1px !important;
     }
 
+    /* ==========================================================
+       INPUTS
+       ========================================================== */
     .stTextInput > div > div > input {
-        border: 2px solid #1E88E5; border-radius: 6px;
+        border: 2px solid #1E88E5 !important;
+        border-radius: 8px !important;
     }
+
     .stTextInput > div > div > input:focus {
-        border-color: #42A5F5; box-shadow: 0 0 0 2px rgba(66,165,245,0.3);
+        border-color: #42A5F5 !important;
+        box-shadow: 0 0 0 3px rgba(66,165,245,0.25) !important;
     }
 
+    /* ==========================================================
+       MÉTRICAS
+       ========================================================== */
     [data-testid="stMetricValue"] {
-        color: #1E88E5; font-weight: bold;
+        color: #1565C0 !important;
+        font-weight: bold !important;
     }
 
+    [data-testid="metric-container"] {
+        border-radius: 14px !important;
+        padding: 1rem !important;
+
+        background: rgba(255,255,255,0.92) !important;
+
+        backdrop-filter: blur(6px);
+
+        box-shadow:
+            0 2px 12px rgba(0,0,0,0.08) !important;
+    }
+
+    /* ==========================================================
+       TABS
+       ========================================================== */
     .stTabs [data-baseweb="tab"] {
-        color: #0A2A43; font-weight: bold;
+        color: #0A2A43 !important;
+        font-weight: bold !important;
     }
+
     .stTabs [aria-selected="true"] {
-        border-bottom: 3px solid #42A5F5 !important; color: #0A2A43 !important;
+        border-bottom: 3px solid #42A5F5 !important;
+        color: #1565C0 !important;
     }
 
-    footer { visibility: hidden; }
-
+    /* ==========================================================
+       DOWNLOAD BUTTON
+       ========================================================== */
     .stDownloadButton > button {
-        background-color: #42A5F5; color: #0A2A43;
-        font-weight: bold; border: none; border-radius: 8px;
-    }
-    .stDownloadButton > button:hover { background-color: #0A2A43; color: white; }
+        background: linear-gradient(
+            135deg,
+            #42A5F5,
+            #1E88E5
+        ) !important;
 
-    p, span, div, label, td, th {
-        font-family: 'Century Gothic', 'Nunito', sans-serif !important;
+        color: white !important;
+        font-weight: bold !important;
+
+        border: none !important;
+        border-radius: 8px !important;
     }
 
+    .stDownloadButton > button:hover {
+        background: #0A2A43 !important;
+        color: white !important;
+    }
+
+    /* ==========================================================
+       HERO LOGOS
+       ========================================================== */
     .hero-logos {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: transparent !important;
         width: 100%;
     }
 
     .hero-logos img {
-        height: 65px !important; 
+        height: 65px !important;
         width: auto !important;
         background: transparent !important;
         border: none !important;
@@ -160,29 +281,45 @@ CSS_CORPORATIVO = """
         object-fit: contain !important;
     }
 
+    /* ==========================================================
+       BANNER PRINCIPAL
+       ========================================================== */
     .hero-gerencia {
-        background: linear-gradient(135deg,#0A2A43,#1E88E5,#42A5F5) !important;
+        background: linear-gradient(
+            135deg,
+            #0A2A43,
+            #1565C0,
+            #42A5F5
+        ) !important;
+
         border-radius: 26px !important;
+
         padding: 28px 25px !important;
+
         margin-bottom: 20px !important;
-        border: none !important;
+
         text-align: center !important;
-        box-shadow: 0 18px 40px rgba(0,0,0,.16) !important;
+
+        box-shadow:
+            0 18px 40px rgba(0,0,0,.16) !important;
     }
-    
+
     .hero-gerencia h1 {
         color: white !important;
+
         margin: 10px 0 0 0 !important;
+
         font-size: 32px !important;
+
         font-weight: 800 !important;
+
         letter-spacing: 1px !important;
     }
 
     .hero-mini {
         font-size: 11px !important;
-        color: rgba(255, 255, 255, 0.9) !important;
+        color: rgba(255,255,255,0.90) !important;
         margin-top: 15px !important;
-        opacity: 0.85 !important;
     }
 
     .sub-acceso {
@@ -196,49 +333,70 @@ CSS_CORPORATIVO = """
         font-size: 13px !important;
         color: #0A2A43 !important;
     }
+
+    footer {
+        visibility: hidden;
+    }
+
 </style>
 """
 st.markdown(CSS_CORPORATIVO, unsafe_allow_html=True)
 
 st.markdown("""
 <style>
+
 .main .block-container {
     max-width: 100% !important;
     width: 100% !important;
+
     padding-top: 1rem !important;
     padding-bottom: 1rem !important;
+
     padding-left: 1.8rem !important;
     padding-right: 1.8rem !important;
 }
+
 section.main > div {
     max-width: 100% !important;
 }
+
 [data-testid="column"] {
     padding: 0.2rem !important;
 }
+
 [data-testid="stDataFrame"] {
     width: 100% !important;
 }
+
 .stForm {
     width: 100% !important;
 }
-[data-testid="metric-container"] {
-    border-radius: 14px !important;
-    padding: 1rem !important;
-    background: white !important;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important;
-}
+
 @media (max-width: 768px) {
+
     .main .block-container {
         padding-left: 0.6rem !important;
         padding-right: 0.6rem !important;
         padding-top: 0.5rem !important;
     }
-    h1 { font-size: 1.6rem !important; }
-    h2 { font-size: 1.3rem !important; }
-    .stButton > button { width: 100% !important; }
-    [data-testid="metric-container"] { padding: 0.8rem !important; }
+
+    h1 {
+        font-size: 1.6rem !important;
+    }
+
+    h2 {
+        font-size: 1.3rem !important;
+    }
+
+    .stButton > button {
+        width: 100% !important;
+    }
+
+    [data-testid="metric-container"] {
+        padding: 0.8rem !important;
+    }
 }
+
 </style>
 """, unsafe_allow_html=True)
 
