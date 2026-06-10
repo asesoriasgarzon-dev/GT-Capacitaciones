@@ -20,7 +20,7 @@ from PIL import Image
 from streamlit_gsheets import GSheetsConnection
 import smtplib
 from email.mime.multipart import MIMEMultipart
-from email.mime_text import MIMEText
+from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from googleapiclient.discovery import build
