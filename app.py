@@ -922,16 +922,16 @@ if st.session_state.rol == "Admin":
             st.rerun()
 
     # ───────────────────────────────────────────────────────────────
-    # MÓDULO: GENERAR ENLACE Y QR
+    # MÓDULO: GENERAR ENLACE
     # ───────────────────────────────────────────────────────────────
-    if opcion_admin == "Generar Enlace / QR":
-        st.markdown("### 🔗 Generar Enlace y Código QR")
+    if opcion_admin == "Generar Enlace":
+        st.markdown("### 🔗 Generar Enlace")
 
         tema_input = st.text_input("Tema de la capacitación:")
         tipo_act = st.selectbox("Tipo de actividad:", ["CAPACITACIÓN", "INDUCCIÓN", "REENTRENAMIENTO", "CHARLA", "REUNIÓN"])
         resumen_input = st.text_area("Resumen del contenido:")
 
-        if st.button("Generar Enlace y QR 🚀", use_container_width=True):
+        if st.button("Generar Enlace🚀", use_container_width=True):
             if tema_input.strip():
                 resumen_bytes = resumen_input.strip().encode('utf-8')
                 resumen_comp = zlib.compress(resumen_bytes)
@@ -941,17 +941,8 @@ if st.session_state.rol == "Admin":
                 url_final = f"{url_base}?rol=Empleado&tema={quote(tema_input.strip().upper())}&tipo={quote(tipo_act)}&resumen={resumen_b64}"
 
                 st.success("Enlace generado:")
-                st.code(url_final)
-
-                qr = qrcode.QRCode(version=1, box_size=10, border=4)
-                qr.add_data(url_final)
-                qr.make(fit=True)
-                img_qr = qr.make_image(fill_color="black", back_color="white")
-
-                buf_qr = BytesIO()
-                img_qr.save(buf_qr, format="PNG")
-
-                st.image(buf_qr.getvalue(), width=300)
+                st.write("### Enlace generado:")
+                st.code(url_final, language="text")                
             else:
                 st.error("Debe ingresar un tema.")
 
