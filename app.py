@@ -65,69 +65,20 @@ CSS_CORPORATIVO = """
        FONDO PRINCIPAL
        ========================================================== */
     .stApp {
+
         background-color: #F7FAFC !important;
-        position: relative !important;
-    }
-
-    /* ==========================================================
-       LOGO CORPORATIVO MIP COMO MARCA DE AGUA
-       ========================================================== */
-    .stApp::before {
-        content: '' !important;
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-
+    
         background-image:
-            radial-gradient(circle at 25% 25%,
-                rgba(255,255,255,0.95) 0%,
-                rgba(255,255,255,0.0) 35%),
-
-            radial-gradient(circle at 75% 20%,
-                rgba(255,255,255,0.85) 0%,
-                rgba(255,255,255,0.0) 30%),
-
-            radial-gradient(circle at 15% 80%,
-                rgba(255,255,255,0.75) 0%,
-                rgba(255,255,255,0.0) 35%),
-
-            radial-gradient(circle at 85% 75%,
-                rgba(255,255,255,0.75) 0%,
-                rgba(255,255,255,0.0) 30%),
-
-            url('https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/mip.png');
-
-        background-repeat:
-            no-repeat,
-            no-repeat,
-            no-repeat,
-            no-repeat,
-            no-repeat;
-
-        background-position:
-            center center,
-            center center,
-            center center,
-            center center,
-            center center;
-
-        background-size:
-            100% 100%,
-            100% 100%,
-            100% 100%,
-            100% 100%,
-            650px;
-
-        opacity: 0.05 !important;
-
-        filter: blur(0.5px);
-
-        z-index: 0 !important;
-        pointer-events: none !important;
+            url("https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/mip.png") !important;
+    
+        background-repeat: no-repeat !important;
+    
+        background-position: center center !important;
+    
+        background-size: 1000px !important;
+    
+        background-attachment: fixed !important;
     }
-
     /* Mantener contenido encima del fondo */
     .stApp > * {
         position: relative !important;
@@ -219,7 +170,7 @@ CSS_CORPORATIVO = """
         border-radius: 14px !important;
         padding: 1rem !important;
 
-        background: rgba(255,255,255,0.92) !important;
+        background: rgba(255,255,255,0.95) !important;
 
         backdrop-filter: blur(6px);
 
@@ -354,6 +305,12 @@ st.markdown("""
 
     padding-left: 1.8rem !important;
     padding-right: 1.8rem !important;
+
+    background: rgba(255,255,255,0.78) !important;
+
+    backdrop-filter: blur(2px) !important;
+
+    border-radius: 18px !important;
 }
 
 section.main > div {
