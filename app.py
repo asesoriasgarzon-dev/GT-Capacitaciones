@@ -661,228 +661,249 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
     return buffer
 
 # =============================================================================
-# LOGIN INICIAL CORPORATIVO MIP
+# PANTALLA DE LOGIN INICIAL
 # =============================================================================
 if "rol" not in st.session_state:
     st.session_state.rol = None
 
-rol_url = st.query_params.get("rol", None)
+# Manejo de rol desde URL
 if rol_url and rol_url.lower() == "empleado":
     st.session_state.rol = "Empleado"
 
+# Si no hay rol, mostrar pantalla de acceso
 if st.session_state.get("rol") is None:
 
-    def logo_to_base64(img):
-        try:
-            buf = BytesIO()
-            img.save(buf, format="PNG")
-            return base64.b64encode(buf.getvalue()).decode()
-        except:
-            return None
+    st.markdown("""
+    <style>
+    .hero-gerencia {
+        background: linear-gradient(135deg,#0A2A43,#1E88E5,#42A5F5);
+        padding: 28px 25px;
+        border-radius: 26px;
+        text-align:center;
+        color:white;
+        box-shadow:0 18px 40px rgba(0,0,0,.16);
+        margin-bottom:18px;
+    }
+    .hero-gerencia h1 {
+        margin:0;
+        font-size:38px;
+        font-weight:800;
+        letter-spacing:1px;
+        color: white !important;
+    }
+    .titulo-acceso {
+        text-align:center;
+        color:#0A2A43;
+        font-size:36px;
+        font-weight:800;
+        margin-top:8px;
+    }
+    .sub-acceso {
+        text-align:center;
+        color:#6b7280;
+        font-size:16px;
+        margin-bottom:18px;
+    }
+    .stButton > button {
+        height:70px !important;
+        border-radius:18px !important;
+        font-size:22px !important;
+        font-weight:800 !important;
+        border:none !important;
+        background:linear-gradient(135deg,#0A2A43,#1E88E5) !important;
+        color:white !important;
+        box-shadow:0 10px 22px rgba(27,94,32,.20);
+    }
+    .stButton > button:hover {
+        transform:translateY(-2px);
+        background: #42A5F5 !important;
+        color: #0A2A43 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    logo1 = logo_to_base64(LOGOS["logo1"]) if "logo1" in LOGOS else None
-    logo2 = logo_to_base64(LOGOS["logo2"]) if "logo2" in LOGOS else None
-
-    paso = st.session_state.get("paso", 0)
-    texto_pagina = f" | Página: {paso} de {TOTAL_PAGINAS}" if paso > 0 else ""
-
-    st.markdown(f"""
+    st.markdown("""
     <div class="hero-gerencia">
-        <div class="hero-logos">
-            <img src="data:image/png;base64,{logo1}" class="hero-logo-img">
-            <img src="data:image/png;base64,{logo2}" class="hero-logo-img">
-        </div>
-        <h1>REGISTRO ASISTENCIA DIGITAL</h1>
-        <div class="hero-mini">
-            MEZCLAS INTEGRALES PROGRAMADAS S.A.S.{texto_pagina}
-        </div>
+        <h1>REGISTRO DE ASISTENCIA MIP</h1>
+        <div class="hero-mini">Sistema Digital de Control de Asistencia</div>
     </div>
     """, unsafe_allow_html=True)
 
-    with st.container(border=True):
-        st.markdown('<h3 style="text-align:center;color:#0A2A43;">Acceso Corporativo</h3>', unsafe_allow_html=True)
+    st.markdown("<h2 class='titulo-acceso'>Selecciona tu tipo de acceso</h2>", unsafe_allow_html=True)
 
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("COLABORADOR", use_container_width=True):
-                st.session_state.rol = "Empleado"
-                st.session_state.paso = 0
-                st.rerun()
+    col1, col2 = st.columns(2)
 
-        with c2:
-            if st.button("ADMINISTRADOR", use_container_width=True):
-                st.session_state.esperando_clave = True
-                st.rerun()
+    with col1:
+        if st.button("Empleado"):
+            st.session_state.rol = "Empleado"
+            st.rerun()
 
-    if st.session_state.get("esperando_clave"):
-        with st.form("login_admin", clear_on_submit=False):
-            clave = st.text_input("🔑 Ingrese Clave de Administrador:", type="password")
-            entrar = st.form_submit_button("Entrar")
-            if entrar and clave == ADMIN_PASS:
-                st.session_state.rol = "Admin"
-                st.session_state.esperando_clave = False
-                st.rerun()
-        st.stop()
+    with col2:
+        if st.button("Administrador"):
+            st.session_state.rol = "Admin"
+            st.rerun()
+
+    st.stop()
 
 # =============================================================================
-# FLUJO COMPLETO DEL EMPLEADO
+# FLUJO DEL EMPLEADO
 # =============================================================================
 if st.session_state.rol == "Empleado":
 
-    # ───────────────────────────────────────────────────────────────
-    # PASO 0 → AUTORIZACIÓN DE USO DE IMAGEN
-    # ───────────────────────────────────────────────────────────────
-    if st.session_state.paso == 0:
-        st.markdown("### 📋 Autorización de Uso de Imagen y Datos")
-        st.info(
-            "Autorizo a MEZCLAS INTEGRALES PROGRAMADAS S.A.S. para recolectar mi fotografía, "
-            "firma y datos biométricos con la única finalidad de registrar y validar mi asistencia "
-            "a la actividad de capacitación."
-        )
+    paso = st.session_state.paso
 
-        acepta = st.checkbox("He leído y acepto los términos de la autorización de datos.")
+    # ============================
+    # PASO 0 — AUTORIZACIÓN
+    # ============================
+    if paso == 0:
+        st.title("Autorización de Uso de Imagen")
 
-        if st.button("Siguiente ➡️", disabled=not acepta, use_container_width=True):
+        st.write("""
+        Para continuar con el registro de asistencia, autoriza el uso de tu imagen
+        para validar tu identidad en el certificado digital.
+        """)
+
+        if st.button("Autorizo y deseo continuar"):
             st.session_state.paso = 1
             st.rerun()
 
-    # ───────────────────────────────────────────────────────────────
-    # PASO 1 → VALIDACIÓN DE CÉDULA
-    # ───────────────────────────────────────────────────────────────
-    elif st.session_state.paso == 1:
-        st.markdown("### 🆔 Validación de Identidad")
-        cedula_input = st.text_input("Ingrese su número de cédula:", key="cedula_field")
+        st.stop()
 
-        if st.button("Verificar 🔍", use_container_width=True):
-            if cedula_input.strip():
-                df_empleados = obtener_datos()
-                cedula_str = str(cedula_input.strip())
+    # ============================
+    # PASO 1 — INGRESO DE CÉDULA
+    # ============================
+    if paso == 1:
+        st.title("Identificación del Empleado")
 
-                if not df_empleados.empty and "ID" in df_empleados.columns:
-                    match = df_empleados[df_empleados["ID"].astype(str) == cedula_str]
+        cedula = st.text_input("Ingresa tu número de documento:", max_chars=15)
 
-                    if not match.empty:
-                        st.session_state.cedula = cedula_str
-                        st.session_state.persona = {
-                            "Nombre": match.iloc[0]["Nombre"],
-                            "Empresa": match.iloc[0].get("Empresa", EMPRESA_ACTIVA["nombre"]),
-                            "Cargo": match.iloc[0].get("Cargo", "NO REGISTRA")
-                        }
-                        st.session_state.paso = 2
-                        st.rerun()
-                    else:
-                        st.error("⚠️ La cédula no se encuentra registrada.")
-                else:
-                    st.warning("⚠️ Base de datos no disponible. Registro manual activado.")
-                    st.session_state.cedula = cedula_str
-                    st.session_state.persona = {
-                        "Nombre": "REGISTRO MANUAL",
-                        "Empresa": EMPRESA_ACTIVA["nombre"],
-                        "Cargo": "NO ASIGNADO"
-                    }
-                    st.session_state.paso = 2
-                    st.rerun()
+        if st.button("Continuar"):
+            if not cedula.strip():
+                st.error("Debes ingresar un número de documento.")
+                st.stop()
 
-    # ───────────────────────────────────────────────────────────────
-    # PASO 2 → CAPTURA DE FOTO
-    # ───────────────────────────────────────────────────────────────
-    elif st.session_state.paso == 2:
-        st.markdown("### 📸 Evidencia Fotográfica")
-        st.write(f"Colaborador: **{st.session_state.persona['Nombre']}**")
+            df = obtener_datos()
 
-        foto = st.camera_input("Capture una foto para validar su asistencia:")
+            if df.empty:
+                st.error("No se encontró el archivo empleados.xlsx")
+                st.stop()
 
-        if foto is not None:
-            st.session_state.foto_data = foto
-            if st.button("Confirmar Foto y Continuar ➡️", use_container_width=True):
-                st.session_state.paso = 3
-                st.rerun()
+            df["ID"] = df["ID"].astype(str).str.strip()
 
-    # ───────────────────────────────────────────────────────────────
-    # PASO 3 → FIRMA DIGITAL Y PROCESAMIENTO
-    # ───────────────────────────────────────────────────────────────
-    elif st.session_state.paso == 3:
-        st.markdown("### ✍️ Firma Digital del Asistente")
-        st.write("Dibuje su firma dentro del recuadro:")
+            fila = df[df["ID"] == cedula.strip()]
+
+            if fila.empty:
+                st.error("No se encontró un empleado con ese documento.")
+                st.stop()
+
+            empleado = fila.iloc[0].to_dict()
+
+            st.session_state.empleado = empleado
+            st.session_state.paso = 2
+            st.rerun()
+
+        st.stop()
+
+    # ============================
+    # PASO 2 — FOTO
+    # ============================
+    if paso == 2:
+        st.title("Captura de Foto")
+
+        st.write("Toma una fotografía para validar tu identidad.")
+
+        foto = st.camera_input("Tomar Foto")
+
+        if foto:
+            st.session_state.foto = foto
+            st.session_state.paso = 3
+            st.rerun()
+
+        st.stop()
+
+    # ============================
+    # PASO 3 — FIRMA
+    # ============================
+    if paso == 3:
+        st.title("Firma Digital")
+
+        st.write("Firma dentro del recuadro para completar tu registro.")
 
         canvas_result = st_canvas(
-            fill_color="rgba(255, 255, 255, 0)",
-            stroke_width=3,
-            stroke_color="#000000",
+            fill_color="rgba(0,0,0,0)",
+            stroke_width=2,
+            stroke_color="#0A2A43",
             background_color="#FFFFFF",
-            height=150,
-            width=400,
+            height=200,
+            width=500,
             drawing_mode="freedraw",
             key="canvas_firma"
         )
 
-        if st.button("Registrar Asistencia 📋", use_container_width=True):
-            if canvas_result.image_data is not None:
-                img_firma = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+        if st.button("Continuar"):
+            if canvas_result.image_data is None:
+                st.error("Debes realizar una firma.")
+                st.stop()
 
-                tz = pytz.timezone('America/Bogota')
-                fecha_actual = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+            firma_buffer = BytesIO()
+            Image.fromarray(canvas_result.image_data.astype("uint8")).save(firma_buffer, format="PNG")
+            firma_buffer.seek(0)
 
-                datos_asistencia = {
-                    "Fecha": fecha_actual,
-                    "ID": st.session_state.cedula,
-                    "Nombre": st.session_state.persona["Nombre"],
-                    "Empresa": st.session_state.persona["Empresa"],
-                    "Cargo": st.session_state.persona["Cargo"],
-                    "Tema": st.session_state.get("tema_actual", "CAPACITACIÓN GENERAL"),
-                    "Resumen": st.session_state.get("resumen_actual", ""),
-                    "Tipo": st.session_state.get("tipo_actividad", "CAPACITACIÓN")
-                }
-
-                with st.spinner("Procesando registro..."):
-                    pdf_buffer = generar_pdf(datos_asistencia, img_firma, st.session_state.foto_data)
-                    pdf_bytes = pdf_buffer.getvalue()
-
-                    nombre_pdf = f"Certificado_{st.session_state.cedula}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                    drive_res = subir_pdf_drive(BytesIO(pdf_bytes), nombre_pdf)
-
-                    link_drive = drive_res.get("webViewLink", "") if drive_res else ""
-                    datos_asistencia["LinkPDF"] = link_drive
-                    datos_asistencia["RutaPDF"] = nombre_pdf
-
-                    guardado_ok = guardar_en_google_sheets(datos_asistencia)
-
-                    if guardado_ok:
-                        enviar_respaldo_async(datos_asistencia, pdf_bytes)
-                        st.session_state.pdf_doc = pdf_bytes
-                        st.session_state.paso = 4
-                        st.rerun()
-                    else:
-                        st.error("❌ Error al guardar en Google Sheets. Intente nuevamente.")
-
-    # ───────────────────────────────────────────────────────────────
-    # PASO 4 → CONFIRMACIÓN FINAL
-    # ───────────────────────────────────────────────────────────────
-    elif st.session_state.paso == 4:
-        st.balloons()
-        st.markdown("""
-            <div style='background-color:#E3F2FD; border:2px solid #0A2A43;
-                        padding:25px; border-radius:15px; text-align:center; margin-bottom: 20px;'>
-                <h2 style='color:#0A2A43; margin:0;'>¡Registro Exitoso!</h2>
-                <p style='color:#1E88E5; font-size:16px;'>Tu asistencia ha sido verificada y almacenada correctamente.</p>
-            </div>
-        """, unsafe_allow_html=True)
-
-        if st.session_state.get("pdf_doc"):
-            st.download_button(
-                label="📥 Descargar Certificado (PDF)",
-                data=st.session_state.pdf_doc,
-                file_name=f"Certificado_Asistencia_{st.session_state.cedula}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-
-        if st.button("🔄 Registrar otra persona", use_container_width=True):
-            for key in ["cedula", "persona", "pdf_doc", "foto_data", "canvas_firma", "paso"]:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.session_state.paso = 0
+            st.session_state.firma = firma_buffer
+            st.session_state.paso = 4
             st.rerun()
+
+        st.stop()
+
+    # ============================
+    # PASO 4 — GENERACIÓN DE CERTIFICADO
+    # ============================
+    if paso == 4:
+        st.title("Generando Certificado...")
+
+        empleado = st.session_state.empleado
+        foto = st.session_state.foto
+        firma = st.session_state.firma
+
+        fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        datos = {
+            "ID": empleado["ID"],
+            "Nombre": empleado["Nombre"],
+            "Empresa": empleado.get("Empresa", "NO REGISTRA"),
+            "Cargo": empleado.get("Cargo", "NO REGISTRA"),
+            "Tema": st.session_state.tema_actual,
+            "Resumen": st.session_state.resumen_actual,
+            "Fecha": fecha,
+            "Tipo": st.session_state.tipo_actividad
+        }
+
+        pdf_buffer = generar_pdf(datos, firma, foto)
+
+        nombre_pdf = f"Certificado_{empleado['ID']}.pdf"
+
+        archivo_drive = subir_pdf_drive(pdf_buffer, nombre_pdf)
+
+        if archivo_drive:
+            datos["RutaPDF"] = archivo_drive.get("id", "")
+            datos["LinkPDF"] = archivo_drive.get("webViewLink", "")
+
+        guardar_en_google_sheets(datos)
+
+        enviar_respaldo_async(datos, pdf_buffer.getvalue())
+
+        st.success("¡Registro completado con éxito!")
+
+        st.download_button(
+            "Descargar Certificado",
+            data=pdf_buffer,
+            file_name=nombre_pdf,
+            mime="application/pdf"
+        )
+
+        st.write("Puedes cerrar esta ventana.")
+
+        st.stop()
 
 # =============================================================================
 # PANEL ADMINISTRATIVO COMPLETO
