@@ -9,7 +9,7 @@ import random
 import plotly.express as px
 import time
 import zipfile
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 from io import BytesIO
 from datetime import datetime
 from streamlit_drawable_canvas import st_canvas
@@ -20,15 +20,17 @@ from PIL import Image
 from streamlit_gsheets import GSheetsConnection
 import smtplib
 from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from email.mime_text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from google.oauth2 import service_account
+import base64
+import zlib
 
 # =============================================================================
-# CONFIGURACIÓN DE PÁGINA
+# CONFIGURACIÓN DE PÁGINA MIP
 # =============================================================================
 st.set_page_config(
     page_title="REGISTRO DE ASISTENCIA DIGITAL - MIP",
@@ -47,9 +49,6 @@ st.session_state.setdefault("modulo", None)
 st.session_state.setdefault("esperando_clave", False)
 st.session_state.setdefault("resumen_actual", "")
 st.session_state.setdefault("tipo_actividad", "CAPACITACIÓN")
-st.session_state.setdefault("actividad_seleccionada", None)
-st.session_state.setdefault("filtro_admin", {})
-st.session_state.setdefault("logs", [])
 
 # =============================================================================
 # CSS CORPORATIVO MIP
@@ -140,6 +139,10 @@ CSS_CORPORATIVO = """
     }
     .stDownloadButton > button:hover { background-color: #0A2A43; color: white; }
 
+    p, span, div, label, td, th {
+        font-family: 'Century Gothic', 'Nunito', sans-serif !important;
+    }
+
     .hero-logos {
         display: flex;
         justify-content: space-between;
@@ -182,13 +185,17 @@ CSS_CORPORATIVO = """
         opacity: 0.85 !important;
     }
 
-    [data-testid="metric-container"] {
-        border-radius: 14px !important;
-        padding: 1rem !important;
-        background: white !important;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important;
+    .sub-acceso {
+        font-weight: 800 !important;
+        font-size: 15px !important;
+        color: #0A2A43 !important;
     }
 
+    .footer-premium {
+        font-weight: 800 !important;
+        font-size: 13px !important;
+        color: #0A2A43 !important;
+    }
 </style>
 """
 st.markdown(CSS_CORPORATIVO, unsafe_allow_html=True)
@@ -215,6 +222,12 @@ section.main > div {
 .stForm {
     width: 100% !important;
 }
+[data-testid="metric-container"] {
+    border-radius: 14px !important;
+    padding: 1rem !important;
+    background: white !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important;
+}
 @media (max-width: 768px) {
     .main .block-container {
         padding-left: 0.6rem !important;
@@ -238,31 +251,17 @@ EMAIL_USER = "ghmip2026@gmail.com"
 EMAIL_PASS = "xitlgjvjreekydxc"
 ADMIN_PASS = st.secrets.get("admin_password", "mip2026")
 
+# =============================================================================
+# CARPETAS DEL SISTEMA
+# =============================================================================
 CARPETA_CERTIFICADOS = "certificados"
 os.makedirs(CARPETA_CERTIFICADOS, exist_ok=True)
 
 # =============================================================================
-# EMPRESA FIJA – MIP
-# =============================================================================
-EMPRESA_ACTIVA = {
-    "nombre": "MEZCLAS INTEGRALES PROGRAMADAS S.A.S.",
-    "logo1": "Logo_Mip-1.png",
-    "logo2": "mip_1.png",
-    "color": "#0A2A43"
-}
-
-# =============================================================================
 # PARÁMETROS URL
 # =============================================================================
-from urllib.parse import unquote
-import base64
-import zlib
-
 params = st.query_params
 
-# =============================================================================
-# FUNCIÓN PARA DESCOMPRIMIR RESUMEN (si algún día lo usas)
-# =============================================================================
 def descomprimir_resumen(texto):
     try:
         texto_bytes = base64.urlsafe_b64decode(texto.encode())
@@ -277,10 +276,8 @@ def descomprimir_resumen(texto):
 tema_desde_url = unquote(params.get("tema", ""))
 if tema_desde_url:
     st.session_state.tema_actual = tema_desde_url.strip().upper()
-
 if not st.session_state.get("tema_actual"):
     st.session_state.tema_actual = "CAPACITACIÓN GENERAL"
-
 tema_actual = st.session_state.tema_actual
 
 # =========================
@@ -289,10 +286,8 @@ tema_actual = st.session_state.tema_actual
 resumen_comprimido = params.get("resumen", "")
 if resumen_comprimido:
     st.session_state.resumen_actual = descomprimir_resumen(resumen_comprimido).strip()
-
 if not st.session_state.get("resumen_actual"):
     st.session_state.resumen_actual = ""
-
 resumen_actual = st.session_state.resumen_actual
 
 # =========================
@@ -301,10 +296,8 @@ resumen_actual = st.session_state.resumen_actual
 tipo_desde_url = unquote(params.get("tipo", ""))
 if tipo_desde_url:
     st.session_state.tipo_actividad = tipo_desde_url.strip()
-
 if not st.session_state.get("tipo_actividad"):
     st.session_state.tipo_actividad = "CAPACITACIÓN"
-
 tipo_actividad = st.session_state.tipo_actividad
 
 # =========================
@@ -318,7 +311,7 @@ if rol_url and st.session_state.rol is None:
         st.session_state.rol = "Admin"
 
 # =============================================================================    
-# LOGOS EN CACHÉ (se leen una sola vez)
+# LOGOS EN CACHÉ
 # =============================================================================
 @st.cache_resource(show_spinner=False)
 def cargar_logos():
@@ -335,7 +328,6 @@ LOGOS = cargar_logos()
 # =============================================================================
 @st.cache_data(ttl=60, show_spinner=False)
 def obtener_datos():
-    """Carga empleados.xlsx (si existe)."""
     ruta = "empleados.xlsx"
     if os.path.exists(ruta):
         try:
@@ -348,7 +340,6 @@ def obtener_datos():
 
 @st.cache_data(ttl=60, show_spinner=False)
 def leer_asistencias():
-    """Lectura de asistencias desde Google Sheets."""
     try:
         df = conn.read(worksheet="Hoja")
         return df if df is not None else pd.DataFrame()
@@ -357,8 +348,6 @@ def leer_asistencias():
         return pd.DataFrame()
 
 def guardar_en_google_sheets(datos):
-    """Guarda una asistencia con reintentos para evitar colisiones."""
-    import time
     try:
         if not datos.get("ID") or not datos.get("Nombre"):
             st.error("Datos incompletos")
@@ -371,6 +360,7 @@ def guardar_en_google_sheets(datos):
             "Empresa": datos.get("Empresa"),
             "Cargo":   datos.get("Cargo", "NO REGISTRA"),
             "Tema":    datos.get("Tema"),
+            "Resumen": datos.get("Resumen", ""),
             "RutaPDF": datos.get("RutaPDF", ""),
             "LinkPDF": datos.get("LinkPDF", ""),
             "Tipo":    datos.get("Tipo", "CAPACITACIÓN")
@@ -397,66 +387,6 @@ def guardar_en_google_sheets(datos):
     except Exception as e:
         st.error(f"Error guardando en Google Sheets: {e}")
         return False
-
-
-# =============================================================================
-# FUNCIÓN DE ENVÍO DE CORREO (ASÍNCRONO)
-# =============================================================================
-def enviar_respaldo_async(datos, pdf_bytes):
-
-    def _proceso_envio():
-        try:
-            print("📩 Enviando respaldo a RRHH...")
-
-            msg = MIMEMultipart()
-            msg['From'] = EMAIL_USER
-            msg['To'] = EMAIL_USER
-            msg['Subject'] = f"📄 Asistencia registrada: {datos['Nombre']} - {datos['Tema']}"
-
-            cuerpo = f"""
-            <html>
-            <body style="font-family: Arial;">
-                <h2 style="color:#0A2A43;">📋 Respaldo de Asistencia</h2>
-
-                <p><b>Empleado:</b> {datos['Nombre']}</p>
-                <p><b>Cédula:</b> {datos['ID']}</p>
-                <p><b>Empresa:</b> {datos['Empresa']}</p>
-                <p><b>Cargo:</b> {datos.get('Cargo', 'NO REGISTRA')}</p>
-                <p><b>Tema:</b> {datos['Tema']}</p>
-                <p><b>Fecha:</b> {datos['Fecha']}</p>
-
-                <hr>
-                <small>Enviado automáticamente desde MIP</small>
-            </body>
-            </html>
-            """
-
-            msg.attach(MIMEText(cuerpo, 'html'))
-
-            # PDF adjunto
-            adjunto = MIMEBase('application', 'octet-stream')
-            adjunto.set_payload(pdf_bytes)
-            encoders.encode_base64(adjunto)
-            adjunto.add_header(
-                'Content-Disposition',
-                f"attachment; filename=Certificado_{datos['ID']}.pdf"
-            )
-            msg.attach(adjunto)
-
-            # Envío
-            server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=30)
-            server.login(EMAIL_USER, EMAIL_PASS)
-            server.sendmail(EMAIL_USER, [EMAIL_USER], msg.as_string())
-            server.quit()
-
-            print(f"✅ CORREO ENVIADO para {datos['ID']}")
-
-        except Exception as e:
-            import traceback
-            print("❌ ERROR EN CORREO:")
-            print(traceback.format_exc())
-
-    threading.Thread(target=_proceso_envio, daemon=True).start()
 
 # =============================================================================
 # SUBIR PDF A GOOGLE DRIVE
@@ -488,7 +418,7 @@ def subir_pdf_drive(pdf_buffer, nombre_archivo):
             media_body=media,
             fields='id, webViewLink'
         ).execute()
-
+        
         print(f"✅ PDF SUBIDO A DRIVE: {nombre_archivo}")
         return archivo
 
@@ -509,48 +439,40 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
     azul_claro  = (0.26, 0.65, 0.96)
     gris_fondo  = (0.96, 0.97, 0.98)
 
-    # Fondo
     p.setFillColorRGB(1, 1, 1)
     p.rect(0, 0, width, height, fill=1, stroke=0)
 
-    # Marco
     p.setStrokeColorRGB(*azul_oscuro)
     p.setLineWidth(1.4)
     p.roundRect(20, 20, width - 40, height - 40, 14)
 
-    # Encabezado
     p.setFillColorRGB(*azul_oscuro)
     p.roundRect(20, height - 125, width - 40, 105, 14, fill=1, stroke=0)
 
-    # Línea decorativa
     p.setFillColorRGB(*azul_claro)
     p.rect(20, height - 125, width - 40, 5, fill=1, stroke=0)
 
-    # Logos
-    for clave, x in [("mip", 35)]:
-        if clave in LOGOS:
-            try:
-                img_logo = LOGOS[clave].convert("RGBA")
-                buf_logo = BytesIO()
-                img_logo.save(buf_logo, format="PNG")
-                buf_logo.seek(0)
+    if "mip" in LOGOS:
+        try:
+            img_logo = LOGOS["mip"].convert("RGBA")
+            buf_logo = BytesIO()
+            img_logo.save(buf_logo, format="PNG")
+            buf_logo.seek(0)
 
-                p.drawImage(
-                    ImageReader(buf_logo),
-                    x, height - 112,
-                    width=110, height=72,
-                    preserveAspectRatio=True,
-                    mask='auto'
-                )
-            except Exception as ex:
-                print(f"[PDF LOGO] {ex}")
+            p.drawImage(
+                ImageReader(buf_logo),
+                35, height - 112,
+                width=110, height=72,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+        except Exception as ex:
+            print(f"[PDF LOGO] {ex}")
 
-    # Título
     p.setFillColorRGB(1, 1, 1)
     p.setFont("Helvetica-Bold", 18)
     p.drawCentredString(width / 2, height - 80, "CERTIFICADO DE ASISTENCIA")
 
-    # Texto central
     p.setFillColorRGB(0, 0, 0)
     p.setFont("Helvetica", 12)
     p.drawCentredString(width / 2, 610, "Se certifica que:")
@@ -567,7 +489,6 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
         f"Identificado(a) con documento No. {datos['ID']} asistió a:"
     )
 
-    # Bloque de capacitación
     resumen = datos.get("Resumen", "")
     tipo    = datos.get("Tipo", "CAPACITACIÓN")
 
@@ -576,17 +497,14 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
     p.setFillColorRGB(*gris_fondo)
     p.roundRect(60, 405, width - 120, alto_rect, 10, fill=1, stroke=0)
 
-    # Tipo
     p.setFillColorRGB(*azul_oscuro)
     p.setFont("Helvetica-Bold", 9)
     p.drawString(80, 405 + alto_rect - 14, f"{tipo}:")
 
-    # Tema
     p.setFillColorRGB(0, 0, 0)
     p.setFont("Helvetica-Bold", 12)
     p.drawString(80, 405 + alto_rect - 30, datos["Tema"])
 
-    # Resumen
     if resumen:
         p.setFont("Helvetica", 9)
         p.setFillColorRGB(0.3, 0.3, 0.3)
@@ -607,7 +525,6 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
         if linea:
             p.drawString(80, y_res, linea)
 
-    # Datos
     p.setFont("Helvetica", 11)
     p.drawString(80, 385, f"Empresa: {datos['Empresa']}")
     p.drawString(80, 365, f"Cargo: {datos.get('Cargo', 'NO REGISTRA')}")
@@ -615,7 +532,6 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
 
     base_y = 185
 
-    # Foto
     if imagen_foto is not None:
         try:
             img = Image.open(imagen_foto).convert("RGB")
@@ -626,7 +542,6 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
         except Exception as ex:
             print(f"[PDF FOTO] {ex}")
 
-    # Firma
     if imagen_firma is not None:
         try:
             p.drawImage(
@@ -646,7 +561,6 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
     p.setFont("Helvetica-Bold", 10)
     p.drawCentredString(width - 185, base_y + 3, "Firma Autorizada")
 
-    # Pie
     p.setFillColorRGB(*azul_medio)
     p.roundRect(20, 20, width - 40, 25, 0, fill=1, stroke=0)
 
@@ -657,8 +571,58 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
     p.showPage()
     p.save()
     buffer.seek(0)
-
     return buffer
+
+# =============================================================================
+# ENVÍO CORREO ASYNC
+# =============================================================================
+def enviar_respaldo_async(datos, pdf_bytes):
+
+    def _proceso_envio():
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = EMAIL_USER
+            msg['To'] = EMAIL_USER
+            msg['Subject'] = f"📄 Asistencia registrada: {datos['Nombre']} - {datos['Tema']}"
+
+            cuerpo = f"""
+            <html>
+            <body style="font-family: Arial;">
+                <h2 style="color:#0A2A43;">📋 Respaldo de Asistencia</h2>
+
+                <p><b>Empleado:</b> {datos['Nombre']}</p>
+                <p><b>Cédula:</b> {datos['ID']}</p>
+                <p><b>Empresa:</b> {datos['Empresa']}</p>
+                <p><b>Cargo:</b> {datos.get('Cargo', 'NO REGISTRA')}</p>
+                <p><b>Tema:</b> {datos['Tema']}</p>
+                <p><b>Fecha:</b> {datos['Fecha']}</p>
+
+                <hr>
+                <small>Enviado automáticamente desde MIP</small>
+            </body>
+            </html>
+            """
+
+            msg.attach(MIMEText(cuerpo, 'html'))
+
+            adjunto = MIMEBase('application', 'octet-stream')
+            adjunto.set_payload(pdf_bytes)
+            encoders.encode_base64(adjunto)
+            adjunto.add_header(
+                'Content-Disposition',
+                f"attachment; filename=Certificado_{datos['ID']}.pdf"
+            )
+            msg.attach(adjunto)
+
+            server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=30)
+            server.login(EMAIL_USER, EMAIL_PASS)
+            server.sendmail(EMAIL_USER, [EMAIL_USER], msg.as_string())
+            server.quit()
+
+        except Exception as e:
+            print(f"❌ ERROR CORREO: {e}")
+
+    threading.Thread(target=_proceso_envio, daemon=True).start()
 
 # =============================================================================
 # PANTALLA DE LOGIN INICIAL
@@ -666,11 +630,9 @@ def generar_pdf(datos, imagen_firma, imagen_foto):
 if "rol" not in st.session_state:
     st.session_state.rol = None
 
-# Manejo de rol desde URL
-if rol_url and rol_url.lower() == "empleado":
+if 'rol_url' in locals() and rol_url and rol_url.lower() == "empleado":
     st.session_state.rol = "Empleado"
 
-# Si no hay rol, mostrar pantalla de acceso
 if st.session_state.get("rol") is None:
 
     st.markdown("""
@@ -684,11 +646,29 @@ if st.session_state.get("rol") is None:
         box-shadow:0 18px 40px rgba(0,0,0,.16);
         margin-bottom:18px;
     }
+    .hero-logos {
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:10px;
+    }
+    .hero-logo-img {
+        background: transparent !important;
+        height: 65px !important;
+        width: auto !important;
+        object-fit: contain;
+    }
     .hero-gerencia h1 {
         margin:0;
         font-size:38px;
         font-weight:800;
         letter-spacing:1px;
+        color: white !important;
+    }
+    .hero-mini {
+        margin-top: 15px !important;
+        font-size: 11px !important;
+        opacity: .85;
         color: white !important;
     }
     .titulo-acceso {
@@ -704,507 +684,906 @@ if st.session_state.get("rol") is None:
         font-size:16px;
         margin-bottom:18px;
     }
-    .stButton > button {
-        height:70px !important;
-        border-radius:18px !important;
-        font-size:22px !important;
-        font-weight:800 !important;
-        border:none !important;
-        background:linear-gradient(135deg,#0A2A43,#1E88E5) !important;
-        color:white !important;
-        box-shadow:0 10px 22px rgba(27,94,32,.20);
-    }
-    .stButton > button:hover {
-        transform:translateY(-2px);
-        background: #42A5F5 !important;
-        color: #0A2A43 !important;
+    .footer-premium {
+        text-align:center;
+        color:#7b7b7b;
+        margin-top:18px;
+        font-size:15px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
+    def logo_to_base64(img_pil):
+        buf = BytesIO()
+        img_pil.save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    logo_mip_html = f'<img src="data:image/png;base64,{logo_to_base64(LOGOS["mip"])}" class="hero-logo-img">' if "mip" in LOGOS else "<div></div>"
+
+    paso = st.session_state.get("paso", 0)
+    texto_pagina = f" | Página: {paso} de {TOTAL_PAGINAS}" if paso > 0 else ""
+
+    st.markdown(f"""
     <div class="hero-gerencia">
-        <h1>REGISTRO DE ASISTENCIA MIP</h1>
-        <div class="hero-mini">Sistema Digital de Control de Asistencia</div>
+        <div class="hero-logos">
+            {logo_mip_html}
+        </div>
+        <h1>REGISTRO ASISTENCIA DIGITAL MIP</h1>
+        <div class="hero-mini">
+            Sistema de control de asistencia • Versión 2026{texto_pagina}
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<h2 class='titulo-acceso'>Selecciona tu tipo de acceso</h2>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="titulo-acceso">Acceso Corporativo</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sub-acceso">Seleccione el perfil para ingresar</div>', unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
+        c1, c2 = st.columns(2)
 
-    with col1:
-        if st.button("Empleado"):
-            st.session_state.rol = "Empleado"
-            st.rerun()
+        with c1:
+            if st.button("COLABORADOR", use_container_width=True):
+                st.session_state.rol = "Empleado"
+                st.session_state.paso = 0
+                st.rerun()
 
-    with col2:
-        if st.button("Administrador"):
-            st.session_state.rol = "Admin"
-            st.rerun()
+        with c2:
+            if st.button("ADMINISTRADOR", use_container_width=True):
+                st.session_state.esperando_clave = True
+                st.rerun()
+
+        if st.session_state.get("esperando_clave"):
+            st.markdown("---")
+            with st.form("login_admin", clear_on_submit=False):
+                clave = st.text_input(
+                    "🔑 Ingrese Clave de Administrador:",
+                    type="password",
+                    placeholder="Contraseña corporativa"
+                )
+                col_bt1, col_bt2 = st.columns(2)
+                with col_bt1:
+                    entrar = st.form_submit_button("Entrar")
+                with col_bt2:
+                    cancelar = st.form_submit_button("Cancelar")
+
+                if entrar:
+                    if clave == ADMIN_PASS:
+                        st.session_state.rol = "Admin"
+                        st.session_state.esperando_clave = False
+                        st.rerun()
+                    else:
+                        st.error("Clave incorrecta ❌")
+
+                if cancelar:
+                    st.session_state.esperando_clave = False
+                    st.rerun()
+
+        st.markdown(
+            '<div class="footer-premium">MEZCLAS INTEGRALES PROGRAMADAS S.A.S • Versión 2026</div>',
+            unsafe_allow_html=True
+        )
 
     st.stop()
 
 # =============================================================================
-# FLUJO DEL EMPLEADO
-# =============================================================================
-if st.session_state.rol == "Empleado":
-
-    paso = st.session_state.paso
-
-    # ============================
-    # PASO 0 — AUTORIZACIÓN
-    # ============================
-    if paso == 0:
-        st.title("Autorización de Uso de Imagen")
-
-        st.write("""
-        Para continuar con el registro de asistencia, autoriza el uso de tu imagen
-        para validar tu identidad en el certificado digital.
-        """)
-
-        if st.button("Autorizo y deseo continuar"):
-            st.session_state.paso = 1
-            st.rerun()
-
-        st.stop()
-
-    # ============================
-    # PASO 1 — INGRESO DE CÉDULA
-    # ============================
-    if paso == 1:
-        st.title("Identificación del Empleado")
-
-        cedula = st.text_input("Ingresa tu número de documento:", max_chars=15)
-
-        if st.button("Continuar"):
-            if not cedula.strip():
-                st.error("Debes ingresar un número de documento.")
-                st.stop()
-
-            df = obtener_datos()
-
-            if df.empty:
-                st.error("No se encontró el archivo empleados.xlsx")
-                st.stop()
-
-            df["ID"] = df["ID"].astype(str).str.strip()
-
-            fila = df[df["ID"] == cedula.strip()]
-
-            if fila.empty:
-                st.error("No se encontró un empleado con ese documento.")
-                st.stop()
-
-            empleado = fila.iloc[0].to_dict()
-
-            st.session_state.empleado = empleado
-            st.session_state.paso = 2
-            st.rerun()
-
-        st.stop()
-
-    # ============================
-    # PASO 2 — FOTO
-    # ============================
-    if paso == 2:
-        st.title("Captura de Foto")
-
-        st.write("Toma una fotografía para validar tu identidad.")
-
-        foto = st.camera_input("Tomar Foto")
-
-        if foto:
-            st.session_state.foto = foto
-            st.session_state.paso = 3
-            st.rerun()
-
-        st.stop()
-
-    # ============================
-    # PASO 3 — FIRMA
-    # ============================
-    if paso == 3:
-        st.title("Firma Digital")
-
-        st.write("Firma dentro del recuadro para completar tu registro.")
-
-        canvas_result = st_canvas(
-            fill_color="rgba(0,0,0,0)",
-            stroke_width=2,
-            stroke_color="#0A2A43",
-            background_color="#FFFFFF",
-            height=200,
-            width=500,
-            drawing_mode="freedraw",
-            key="canvas_firma"
-        )
-
-        if st.button("Continuar"):
-            if canvas_result.image_data is None:
-                st.error("Debes realizar una firma.")
-                st.stop()
-
-            firma_buffer = BytesIO()
-            Image.fromarray(canvas_result.image_data.astype("uint8")).save(firma_buffer, format="PNG")
-            firma_buffer.seek(0)
-
-            st.session_state.firma = firma_buffer
-            st.session_state.paso = 4
-            st.rerun()
-
-        st.stop()
-
-    # ============================
-    # PASO 4 — GENERACIÓN DE CERTIFICADO
-    # ============================
-    if paso == 4:
-        st.title("Generando Certificado...")
-
-        empleado = st.session_state.empleado
-        foto = st.session_state.foto
-        firma = st.session_state.firma
-
-        fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        datos = {
-            "ID": empleado["ID"],
-            "Nombre": empleado["Nombre"],
-            "Empresa": empleado.get("Empresa", "NO REGISTRA"),
-            "Cargo": empleado.get("Cargo", "NO REGISTRA"),
-            "Tema": st.session_state.tema_actual,
-            "Resumen": st.session_state.resumen_actual,
-            "Fecha": fecha,
-            "Tipo": st.session_state.tipo_actividad
-        }
-
-        pdf_buffer = generar_pdf(datos, firma, foto)
-
-        nombre_pdf = f"Certificado_{empleado['ID']}.pdf"
-
-        archivo_drive = subir_pdf_drive(pdf_buffer, nombre_pdf)
-
-        if archivo_drive:
-            datos["RutaPDF"] = archivo_drive.get("id", "")
-            datos["LinkPDF"] = archivo_drive.get("webViewLink", "")
-
-        guardar_en_google_sheets(datos)
-
-        enviar_respaldo_async(datos, pdf_buffer.getvalue())
-
-        st.success("¡Registro completado con éxito!")
-
-        st.download_button(
-            "Descargar Certificado",
-            data=pdf_buffer,
-            file_name=nombre_pdf,
-            mime="application/pdf"
-        )
-
-        st.write("Puedes cerrar esta ventana.")
-
-        st.stop()
-
-# =============================================================================
-# PANEL ADMINISTRATIVO COMPLETO
+# BARRA SUPERIOR (botón volver + logos + título)
 # =============================================================================
 if st.session_state.rol == "Admin":
 
-    with st.sidebar:
-        st.markdown("<h2 style='color:white;'>⚙️ Panel Administrativo</h2>", unsafe_allow_html=True)
-        opcion_admin = st.radio(
-            "Seleccione un módulo:",
-            ["Generar Enlace", "Base de Empleados", "Cargar Personal", "Dashboard", "Historial"]
-        )
-        st.markdown("---")
-        if st.button("🚪 Cerrar Sesión", use_container_width=True):
-            st.session_state.rol = None
+    col_volver, col_vacia = st.columns([1, 4])
+
+    with col_volver:
+        if st.button("INICIO", use_container_width=True):
+
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+
             st.rerun()
 
-    # ───────────────────────────────────────────────────────────────
-    # MÓDULO: GENERAR ENLACE
-    # ───────────────────────────────────────────────────────────────
-    if opcion_admin == "Generar Enlace":
-        st.markdown("### 🔗 Generar Enlace")
+    def logo_b64(img_pil):
+        buf = BytesIO()
+        img_pil.save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-        tema_input = st.text_input("Tema de la capacitación:")
-        tipo_act = st.selectbox("Tipo de actividad:", ["CAPACITACIÓN", "INDUCCIÓN", "REENTRENAMIENTO", "CHARLA", "REUNIÓN"])
-        resumen_input = st.text_area("Resumen del contenido:")
+    logo_mip = (
+        f'<img src="data:image/png;base64,{logo_b64(LOGOS["mip"])}" class="hero-logo-img">'
+        if "mip" in LOGOS else ""
+    )
 
-        if st.button("Generar Enlace🚀", use_container_width=True):
-            if tema_input.strip():
-                resumen_bytes = resumen_input.strip().encode('utf-8')
-                resumen_comp = zlib.compress(resumen_bytes)
-                resumen_b64 = base64.urlsafe_b64encode(resumen_comp).decode('utf-8')
+    paso = st.session_state.get("paso", 0)
+    texto_pagina = f" | Página: {paso} de {TOTAL_PAGINAS}" if paso > 0 else ""
 
-                url_base = st.secrets.get("base_url", "https://asistencias-mip.streamlit.app/")
-                url_final = f"{url_base}?rol=Empleado&tema={quote(tema_input.strip().upper())}&tipo={quote(tipo_act)}&resumen={resumen_b64}"
+    st.markdown(f"""
+        <div class="hero-gerencia">
+            <div class="hero-logos">
+                {logo_mip}
+            </div>
+            <h1>REGISTRO ASISTENCIA DIGITAL MIP</h1>
+            <div class="hero-mini">
+                Sistema de control de asistencia • Versión 2026{texto_pagina}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-                st.success("Enlace generado:")
-                st.write("### Enlace generado:")
-                st.code(url_final, language="text")                
-            else:
-                st.error("Debe ingresar un tema.")
-        # ───────────────────────────────────────────────────────────────
-        # MÓDULO: DASHBOARD ADMINISTRATIVO
-        # ───────────────────────────────────────────────────────────────
-        if opcion_admin == "Dashboard":
-            st.markdown("## 📊 Dashboard de Asistencias MIP")
-    
-            df_asist = leer_asistencias()
-    
-            if df_asist.empty:
-                st.warning("No hay registros de asistencia aún.")
-                st.stop()
-    
-            # Normalizar columnas
-            df_asist["Fecha"] = pd.to_datetime(df_asist["Fecha"], errors="coerce")
-            df_asist["Año"] = df_asist["Fecha"].dt.year
-            df_asist["Mes"] = df_asist["Fecha"].dt.month
-            df_asist["Día"] = df_asist["Fecha"].dt.day
-    
-            # Filtros
-            st.markdown("### 🔎 Filtros")
-    
-            col1, col2, col3 = st.columns(3)
-    
-            with col1:
-                filtro_empresa = st.selectbox(
-                    "Empresa:",
-                    ["Todas"] + sorted(df_asist["Empresa"].dropna().unique().tolist())
-                )
-    
-            with col2:
-                filtro_tipo = st.selectbox(
-                    "Tipo de actividad:",
-                    ["Todos"] + sorted(df_asist["Tipo"].dropna().unique().tolist())
-                )
-    
-            with col3:
-                filtro_tema = st.selectbox(
-                    "Tema:",
-                    ["Todos"] + sorted(df_asist["Tema"].dropna().unique().tolist())
-                )
-    
-            # Aplicar filtros
-            df_filtrado = df_asist.copy()
-    
-            if filtro_empresa != "Todas":
-                df_filtrado = df_filtrado[df_filtrado["Empresa"] == filtro_empresa]
-    
-            if filtro_tipo != "Todos":
-                df_filtrado = df_filtrado[df_filtrado["Tipo"] == filtro_tipo]
-    
-            if filtro_tema != "Todos":
-                df_filtrado = df_filtrado[df_filtrado["Tema"] == filtro_tema]
-    
-            # KPIs
-            st.markdown("### 📌 Indicadores")
-    
-            colA, colB, colC = st.columns(3)
-    
-            with colA:
-                st.metric("Total Registros", len(df_filtrado))
-    
-            with colB:
-                st.metric("Empresas Únicas", df_filtrado["Empresa"].nunique())
-    
-            with colC:
-                st.metric("Temas Únicos", df_filtrado["Tema"].nunique())
-    
-            # Gráfico por empresa
-            st.markdown("### 🏢 Registros por Empresa")
-            graf1 = df_filtrado.groupby("Empresa").size().reset_index(name="Total")
-            fig1 = px.bar(graf1, x="Empresa", y="Total", color="Empresa")
-            st.plotly_chart(fig1, use_container_width=True)
-    
-            # Gráfico por tema
-            st.markdown("### 📘 Registros por Tema")
-            graf2 = df_filtrado.groupby("Tema").size().reset_index(name="Total")
-            fig2 = px.bar(graf2, x="Tema", y="Total", color="Tema")
-            st.plotly_chart(fig2, use_container_width=True)
-    
-            # Tabla
-            st.markdown("### 📄 Registros Detallados")
-            st.dataframe(df_filtrado, use_container_width=True)
-    
-            # Exportación
-            csv = df_filtrado.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "📥 Descargar CSV",
-                data=csv,
-                file_name="asistencias_filtradas.csv",
-                mime="text/csv"
+# =============================================================================
+# MENÚ SEGÚN ROL
+# =============================================================================
+if st.session_state.rol == "Empleado":
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {display:none;}
+        #MainMenu {visibility:hidden;}
+        header {visibility:hidden;}
+    </style>
+    """, unsafe_allow_html=True)
+    menu = "Registro Asistencia"
+
+else:
+    with st.sidebar:
+        if "mip" in LOGOS:
+            st.image(LOGOS["mip"], width=180)
+        st.markdown("## Panel Administrativo")
+        st.markdown("Gestión Humana / MIP")
+        st.markdown("---")
+        menu = st.radio("Seleccione módulo", [
+            "Configurar Tema",
+            "Registro Asistencia",
+            "Lista Empleados",
+            "Cargar Base de Personal",
+            "Dashboard",
+            "Historial",
+            "Reportes",
+            "Gestor Certificados",
+        ])
+        st.markdown("---")
+        if st.button("🚪 Cerrar Sesión", use_container_width=True):
+            del st.session_state["rol"]
+            st.rerun()
+
+# =============================================================================
+# PANEL ADMIN
+# =============================================================================
+if st.session_state.rol == "Admin":
+
+    if menu == "Configurar Tema":
+        st.markdown("## ⚙️ Configuración de la Capacitación")
+        with st.container(border=True):
+            st.markdown("### 1. Definir Tema")
+            tipo_actividad = st.selectbox(
+                "Tipo de actividad:",
+                ["CAPACITACIÓN", "INDUCCIÓN", "REINDUCCIÓN", "ACTIVIDAD", "TALLER","SEMINARIO", "OTRO"]
+            )
+            nuevo_tema = st.text_input(
+                "Nombre de la Actividad:",
+                placeholder="Ej: CAPACITACIÓN SEGURIDAD INDUSTRIAL 2026"
+            )
+            nuevo_resumen = st.text_area(
+                "Resumen de contenido (opcional):",
+                placeholder="Ej: Temas tratados: EPP, riesgos eléctricos, evacuación...",
+                max_chars=500,
+                height=100
+            )
+            if st.button("💾 Guardar y Activar Tema"):
+                if nuevo_tema:
+                    st.session_state.tema_actual    = nuevo_tema.upper()
+                    st.session_state.resumen_actual = nuevo_resumen.strip()
+                    st.session_state.tipo_actividad = tipo_actividad
+                    st.success(f"✅ Tema actualizado: **{nuevo_tema.upper()}**")
+                else:
+                    st.error("⚠️ Por favor escribe un nombre antes de guardar.")
+
+        def comprimir_resumen(texto):
+            texto_comprimido = zlib.compress(texto.encode("utf-8"))
+            return base64.urlsafe_b64encode(texto_comprimido).decode()
+
+        if "tema_actual" in st.session_state:
+            st.markdown("---")
+            st.markdown("### 🔗 Enlace de Acceso")
+
+            base_url = "https://asistencias-mip.streamlit.app/"
+
+            tema_url = quote(st.session_state.tema_actual)
+            resumen_url = comprimir_resumen(st.session_state.get("resumen_actual", ""))
+            tipo_url = quote(st.session_state.get("tipo_actividad", "CAPACITACIÓN"))
+
+            url_final = (
+                f"{base_url}"
+                f"?tema={tema_url}"
+                f"&resumen={resumen_url}"
+                f"&tipo={tipo_url}"
+                f"&rol=Empleado"
             )
 
-        # ───────────────────────────────────────────────────────────────
-        # MÓDULO: HISTORIAL / GESTOR DE CERTIFICADOS
-        # ───────────────────────────────────────────────────────────────
-        if opcion_admin == "Historial":
-            st.markdown("## 🗂️ Historial de Asistencias y Certificados")
-    
-            df_asist = leer_asistencias()
-    
-            if df_asist.empty:
-                st.warning("No hay registros disponibles.")
-                st.stop()
-    
-            # Normalizar
-            df_asist["Fecha"] = pd.to_datetime(df_asist["Fecha"], errors="coerce")
-    
-            # Filtros
-            st.markdown("### 🔎 Filtros de búsqueda")
-    
-            col1, col2, col3 = st.columns(3)
-    
-            with col1:
-                filtro_id = st.text_input("Buscar por Cédula:")
-    
-            with col2:
-                filtro_nombre = st.text_input("Buscar por Nombre:")
-    
-            with col3:
-                filtro_tema = st.text_input("Buscar por Tema:")
-    
-            df_filtrado = df_asist.copy()
-    
-            if filtro_id.strip():
-                df_filtrado = df_filtrado[df_filtrado["ID"].astype(str).str.contains(filtro_id.strip(), case=False)]
-    
-            if filtro_nombre.strip():
-                df_filtrado = df_filtrado[df_filtrado["Nombre"].str.contains(filtro_nombre.strip(), case=False)]
-    
-            if filtro_tema.strip():
-                df_filtrado = df_filtrado[df_filtrado["Tema"].str.contains(filtro_tema.strip(), case=False)]
-    
-            st.markdown("### 📄 Resultados")
-            st.dataframe(df_filtrado, use_container_width=True)
-    
-            # Selección de registro
-            st.markdown("### 📌 Seleccionar un registro para gestionar")
-    
-            lista_ids = df_filtrado["ID"].astype(str).unique().tolist()
-    
-            if not lista_ids:
-                st.info("No hay registros con los filtros aplicados.")
-                st.stop()
-    
-            id_sel = st.selectbox("Seleccione un documento:", lista_ids)
-    
-            fila = df_filtrado[df_filtrado["ID"].astype(str) == id_sel].iloc[0].to_dict()
-    
-            st.markdown(f"### 🧾 Certificado de **{fila['Nombre']}**")
-    
-            # Botón para regenerar PDF
-            if st.button("🔄 Regenerar Certificado PDF"):
-                datos = {
-                    "ID": fila["ID"],
-                    "Nombre": fila["Nombre"],
-                    "Empresa": fila["Empresa"],
-                    "Cargo": fila.get("Cargo", "NO REGISTRA"),
-                    "Tema": fila["Tema"],
-                    "Resumen": fila.get("Resumen", ""),
-                    "Fecha": fila["Fecha"].strftime("%Y-%m-%d %H:%M:%S"),
-                    "Tipo": fila.get("Tipo", "CAPACITACIÓN")
-                }
-    
-                pdf_buffer = generar_pdf(datos, None, None)
-    
-                st.download_button(
-                    "Descargar PDF regenerado",
-                    data=pdf_buffer,
-                    file_name=f"Certificado_{fila['ID']}.pdf",
-                    mime="application/pdf"
-                )
-    
-                st.success("Certificado regenerado correctamente.")
-    
-            # Reenvío por correo
-            if st.button("📧 Reenviar Certificado por Correo"):
-                try:
-                    enviar_respaldo_async(fila, b"")
-                    st.success("Correo reenviado correctamente.")
-                except:
-                    st.error("No fue posible reenviar el correo.")
-    
-            # Exportar ZIP
-            st.markdown("### 📦 Exportar certificados filtrados")
-    
-            if st.button("Descargar ZIP"):
-                zip_buffer = BytesIO()
-    
-                with zipfile.ZipFile(zip_buffer, "w") as z:
-                    for _, row in df_filtrado.iterrows():
-                        nombre = f"Certificado_{row['ID']}.pdf"
-                        z.writestr(nombre, f"Certificado de {row['Nombre']} - {row['Tema']}")
-    
-                zip_buffer.seek(0)
-    
-                st.download_button(
-                    "📥 Descargar ZIP",
-                    data=zip_buffer,
-                    file_name="certificados.zip",
-                    mime="application/zip"
-                )
-        # ───────────────────────────────────────────────────────────────
-        # MÓDULO: CONFIGURACIÓN INTERNA / HERRAMIENTAS DEL ADMIN
-        # ───────────────────────────────────────────────────────────────
-        if opcion_admin == "Configuración":
-            st.markdown("## ⚙️ Configuración Interna del Sistema MIP")
-    
-            st.info("Este módulo contiene herramientas internas para mantenimiento y diagnóstico del sistema.")
-    
-            # --------------------------
-            # LIMPIAR CACHÉ
-            # --------------------------
-            st.markdown("### 🧹 Limpieza de Caché")
-    
-            if st.button("Limpiar caché de Streamlit"):
-                st.cache_data.clear()
-                st.cache_resource.clear()
-                st.success("Caché limpiada correctamente.")
-                st.rerun()
-    
-            # --------------------------
-            # LOGS INTERNOS
-            # --------------------------
-            st.markdown("### 📜 Logs Internos")
-    
-            if not st.session_state.logs:
-                st.write("No hay logs registrados aún.")
-            else:
-                for log in st.session_state.logs[-50:]:
-                    st.text(f"- {log}")
-    
-            # --------------------------
-            # ESTADO DE SESIÓN
-            # --------------------------
-            st.markdown("### 🧠 Estado de Sesión")
-    
-            st.json({
-                "rol": st.session_state.get("rol"),
-                "paso": st.session_state.get("paso"),
-                "tema_actual": st.session_state.get("tema_actual"),
-                "tipo_actividad": st.session_state.get("tipo_actividad"),
-                "resumen_actual": st.session_state.get("resumen_actual"),
-                "actividad_seleccionada": st.session_state.get("actividad_seleccionada")
-            })
-    
-            # --------------------------
-            # REINICIAR FLUJO DEL EMPLEADO
-            # --------------------------
-            st.markdown("### 🔄 Reiniciar Flujo del Empleado")
-    
-            if st.button("Reiniciar pasos del flujo"):
-                st.session_state.paso = 0
-                st.success("Flujo reiniciado correctamente.")
-    
-            # --------------------------
-            # INFORMACIÓN DEL SISTEMA
-            # --------------------------
-            st.markdown("### 🖥️ Información del Sistema")
-    
-            st.write(f"**Versión de Python:** {os.sys.version}")
-            st.write(f"**Zona horaria:** {datetime.now().astimezone().tzinfo}")
-            st.write(f"**Hora actual:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            st.info(f"Copia este enlace y envíalo por WhatsApp:\n\n{url_final}")
 
+    if menu == "Lista Empleados":
+        st.markdown("## 👥 Base de Empleados")
+        df_emp = obtener_datos()
+        if df_emp is not None and not df_emp.empty:
+            st.success(f"Total empleados cargados: {len(df_emp)}")
+            buscar = st.text_input("🔎 Buscar empleado")
+            if buscar:
+                filtro = df_emp.astype(str).apply(
+                    lambda x: x.str.contains(buscar, case=False, na=False)
+                ).any(axis=1)
+                df_emp = df_emp[filtro]
+            st.dataframe(df_emp, use_container_width=True)
+            excel = BytesIO()
+            with pd.ExcelWriter(excel, engine="openpyxl") as writer:
+                df_emp.to_excel(writer, index=False, sheet_name="Empleados")
+            st.download_button("📥 Descargar Excel", excel.getvalue(), "empleados.xlsx",
+                               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        else:
+            st.warning("No existe archivo empleados.xlsx")
+
+    elif menu == "Cargar Base de Personal":
+        st.markdown("## 📤 Actualizar Base de Personal")
+        archivo = st.file_uploader("Subir archivo Excel actualizado", type=["xlsx"])
+        if archivo is not None:
+            with open("empleados.xlsx", "wb") as f:
+                f.write(archivo.getbuffer())
+            obtener_datos.clear()
+            st.success("✅ Archivo actualizado correctamente.")
+
+    elif menu == "Dashboard":
+        st.markdown("## 📊 Dashboard Ejecutivo")
+
+        if st.button("🔄 Actualizar datos"):
+            leer_asistencias.clear()
+            st.rerun()
+
+        try:
+            df = leer_asistencias()
+
+            if df.empty:
+                st.warning("No hay registros.")
+                st.stop()
+
+            df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce", dayfirst=True)
+            df = df.dropna(subset=["Fecha"])
+
+            with st.expander("🎯 Filtros", expanded=False):
+                colf1, colf2, colf3 = st.columns(3)
+
+                with colf1:
+                    empresa_sel = st.multiselect(
+                        "🏢 Empresa",
+                        options=sorted(df["Empresa"].dropna().unique()),
+                        default=sorted(df["Empresa"].dropna().unique())
+                    )
+
+                with colf2:
+                    tema_sel = st.multiselect(
+                        "📚 Tema",
+                        options=sorted(df["Tema"].dropna().unique()),
+                        default=sorted(df["Tema"].dropna().unique())
+                    )
+
+                with colf3:
+                    fecha_sel = st.date_input(
+                        "📅 Rango de fechas",
+                        value=(df["Fecha"].min().date(), df["Fecha"].max().date())
+                    )
+
+            df_filtrado = df[
+                (df["Empresa"].isin(empresa_sel)) &
+                (df["Tema"].isin(tema_sel))
+            ].copy()
+
+            if isinstance(fecha_sel, tuple) and len(fecha_sel) == 2:
+                inicio, fin = fecha_sel
+                df_filtrado = df_filtrado[
+                    (df_filtrado["Fecha"].dt.date >= inicio) &
+                    (df_filtrado["Fecha"].dt.date <= fin)
+                ]
+
+            if df_filtrado.empty:
+                st.warning("⚠️ No hay datos con los filtros seleccionados.")
+                st.stop()
+
+            total = len(df_filtrado)
+            personas = df_filtrado["ID"].nunique()
+            temas = df_filtrado["Tema"].nunique()
+            empresas = df_filtrado["Empresa"].nunique()
+
+            st.markdown("""
+            <style>
+            .card {
+                background: white;
+                padding: 18px;
+                border-radius: 16px;
+                box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+                border-left: 6px solid #1E88E5;
+                text-align: center;
+            }
+            .card h3 { margin:0; font-size:14px; color:#6B7280; }
+            .card h1 { margin:5px 0; font-size:30px; color:#0A2A43; }
+            </style>
+            """, unsafe_allow_html=True)
+
+            k1, k2, k3, k4 = st.columns(4)
+
+            with k1:
+                st.markdown(f'<div class="card"><h3>📋 Registros</h3><h1>{total}</h1></div>', unsafe_allow_html=True)
+            with k2:
+                st.markdown(f'<div class="card"><h3>👥 Personas</h3><h1>{personas}</h1></div>', unsafe_allow_html=True)
+            with k3:
+                st.markdown(f'<div class="card"><h3>📚 Capacitaciones</h3><h1>{temas}</h1></div>', unsafe_allow_html=True)
+            with k4:
+                st.markdown(f'<div class="card"><h3>🏢 Empresas</h3><h1>{empresas}</h1></div>', unsafe_allow_html=True)
+
+            st.markdown("---")
+
+            df_fecha = df_filtrado.copy()
+            df_fecha["Fecha"] = df_fecha["Fecha"].dt.date
+            df_fecha = df_fecha.groupby("Fecha").size().reset_index(name="Registros")
+
+            fig_line = px.line(df_fecha, x="Fecha", y="Registros", markers=True)
+            st.plotly_chart(fig_line, use_container_width=True)
+
+            st.markdown("---")
+
+            st.subheader("📋 Resumen por Empresa")
+
+            resumen = df_filtrado.groupby("Empresa").agg(
+                Registros=("ID", "count"),
+                Personas=("ID", "nunique")
+            ).reset_index()
+
+            st.dataframe(resumen, use_container_width=True)
+
+        except Exception as e:
+            st.error(f"Error crítico en el Dashboard: {e}")
+
+    elif menu == "Historial":
+        st.markdown("## 📄 Historial de Asistencias")
+
+        try:
+            df = leer_asistencias()
+
+            ced = st.text_input("Buscar por cédula")
+
+            if ced:
+                df = df[df["ID"].astype(str) == ced]
+
+            st.dataframe(df, use_container_width=True)
+
+        except Exception as e:
+            st.warning(f"Error historial: {e}")
+
+    elif menu == "Reportes":
+        st.markdown("## 📁 Reportes")
+
+        try:
+            df = leer_asistencias()
+
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("📥 Descargar CSV", csv, "reporte.csv", "text/csv")
+
+            excel = BytesIO()
+            with pd.ExcelWriter(excel, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False, sheet_name="Reporte")
+
+            st.download_button(
+                "📥 Descargar Excel",
+                excel.getvalue(),
+                "reporte.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+        except Exception as e:
+            st.warning(f"Error reportes: {e}")
+
+    elif menu == "Gestor Certificados":
+
+        import re
+
+        st.markdown("## 📂 Gestor de Certificados")
+
+        if not os.path.exists(CARPETA_CERTIFICADOS):
+            st.warning("No existe carpeta de certificados.")
+            st.stop()
+
+        archivos_pdf = sorted([
+            f for f in os.listdir(CARPETA_CERTIFICADOS)
+            if f.lower().endswith(".pdf")
+        ])
+
+        if not archivos_pdf:
+            st.info("No hay certificados guardados.")
+            st.stop()
+
+        temas_detectados = []
+
+        for archivo in archivos_pdf:
+            try:
+                nombre_limpio = archivo.replace(".pdf", "")
+                partes = nombre_limpio.split("_")
+                if len(partes) >= 4:
+                    tema = "_".join(partes[:-3])
+                else:
+                    tema = "SIN CLASIFICAR"
+                temas_detectados.append(tema)
+            except:
+                temas_detectados.append("SIN CLASIFICAR")
+
+        df_pdf = pd.DataFrame({
+            "Archivo": archivos_pdf,
+            "Tema": temas_detectados
+        })
+
+        colk1, colk2 = st.columns(2)
+
+        with colk1:
+            st.success(f"📄 Certificados encontrados: {len(df_pdf)}")
+
+        with colk2:
+            st.info(f"📚 Capacitaciones detectadas: {df_pdf['Tema'].nunique()}")
+
+        st.markdown("### 🎯 Filtros")
+
+        colf1, colf2 = st.columns(2)
+
+        with colf1:
+            tema_seleccionado = st.selectbox(
+                "📚 Filtrar por capacitación",
+                ["TODOS"] + sorted(df_pdf["Tema"].unique().tolist())
+            )
+
+        with colf2:
+            buscar = st.text_input("🔎 Buscar por nombre o cédula")
+
+        df_filtrado = df_pdf.copy()
+
+        if tema_seleccionado != "TODOS":
+            df_filtrado = df_filtrado[df_filtrado["Tema"] == tema_seleccionado]
+
+        if buscar:
+            df_filtrado = df_filtrado[
+                df_filtrado["Archivo"].str.contains(buscar, case=False, na=False)
+            ]
+
+        if df_filtrado.empty:
+            st.warning("No existen certificados con ese filtro.")
+            st.stop()
+
+        st.markdown("### 📋 Certificados Encontrados")
+
+        st.dataframe(
+            df_filtrado,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.markdown("---")
+
+        st.markdown("## 📥 Descargar Individual")
+
+        archivo_sel = st.selectbox(
+            "Seleccione certificado",
+            df_filtrado["Archivo"].tolist()
+        )
+
+        ruta_sel = os.path.join(
+            CARPETA_CERTIFICADOS,
+            archivo_sel
+        )
+
+        with open(ruta_sel, "rb") as f:
+            st.download_button(
+                "📄 Descargar PDF",
+                data=f.read(),
+                file_name=archivo_sel,
+                mime="application/pdf",
+                use_container_width=True
+            )
+
+        st.markdown("---")
+
+        st.markdown("## 🗜️ Descarga Masiva")
+
+        cantidad_zip = len(df_filtrado)
+
+        st.info(f"Se incluirán {cantidad_zip} certificados en el ZIP.")
+
+        nombre_zip = (
+            f"{tema_seleccionado}_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+            if tema_seleccionado != "TODOS"
+            else f"Certificados_Completos_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+        )
+
+        if st.button("📦 Generar ZIP", use_container_width=True):
+
+            with st.spinner("Generando ZIP..."):
+
+                zip_buffer = BytesIO()
+
+                with zipfile.ZipFile(
+                    zip_buffer,
+                    "w",
+                    zipfile.ZIP_DEFLATED
+                ) as zipf:
+
+                    for archivo in df_filtrado["Archivo"]:
+
+                        ruta = os.path.join(
+                            CARPETA_CERTIFICADOS,
+                            archivo
+                        )
+
+                        if os.path.exists(ruta):
+
+                            zipf.write(
+                                ruta,
+                                arcname=archivo
+                            )
+
+                zip_buffer.seek(0)
+
+                st.success("✅ ZIP generado correctamente.")
+
+                st.download_button(
+                    "⬇️ Descargar ZIP",
+                    data=zip_buffer,
+                    file_name=nombre_zip,
+                    mime="application/zip",
+                    use_container_width=True
+                )
+
+        st.markdown("---")
+
+        st.markdown("### 📊 Resumen")
+
+        resumen = (
+            df_filtrado
+            .groupby("Tema")
+            .size()
+            .reset_index(name="Cantidad PDFs")
+        )
+
+        st.dataframe(
+            resumen,
+            use_container_width=True,
+            hide_index=True
+        )
+
+# =============================================================================
+# FLUJO EMPLEADO
+# =============================================================================
+if menu == "Registro Asistencia":
+
+    if st.session_state.get("modulo") != "registro_asistencia":
+        st.session_state.modulo    = "registro_asistencia"
+        st.session_state.paso      = 0
+        st.session_state.persona   = None
+        st.session_state.cedula    = None
+        st.session_state.foto_data = None
+        st.session_state.pdf_doc   = None
+
+    if st.session_state.paso == 0:
+
+        st.markdown("""
+        <div style='background-color:#E3F2FD; border-left:5px solid #1E88E5;
+                    padding:12px 16px; border-radius:6px; margin-bottom:1.2rem;'>
+            📋 <strong>Antes de continuar, por favor lee y acepta la siguiente autorización.</strong>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div style='
+            border: 2px solid #0A2A43;
+            border-radius: 12px;
+            padding: 28px 32px;
+            background-color: #ffffff;
+            max-width: 680px;
+            margin: 0 auto 20px auto;
+            font-family: Arial, sans-serif;
+        '>
+            <h3 style='text-align:center; color:#0A2A43; font-size:17px; font-weight:800; margin-bottom:16px;'>
+                AUTORIZACIÓN DE USO DE DATOS PERSONALES, DERECHOS DE IMAGEN Y FIRMA DIGITAL
+            </h3>
+            <p style='font-size:14px; color:#222; line-height:1.7; text-align:justify;'>
+                Autorizo a <strong>MEZCLAS INTEGRALES PROGRAMADAS S.A.S.</strong>, en calidad de responsable del
+                tratamiento de datos personales, para que recopile, almacene y utilice la
+                siguiente información: <strong>fotografía</strong> para validación de identidad,
+                <strong>firma manuscrita digitalizada</strong> como constancia de asistencia, y
+                <strong>datos de identificación</strong> (nombre, cédula, cargo, empresa).
+            </p>
+            <p style='font-size:14px; color:#222; line-height:1.7; text-align:justify; margin-top:12px;'>
+                La finalidad del tratamiento es <strong>exclusivamente</strong> el registro y
+                certificación de asistencia a capacitaciones y actividades corporativas, conforme
+                a las obligaciones del SG-SST. Esta autorización se otorga de forma
+                <strong>voluntaria, libre y espontánea</strong>, conforme a la
+                <strong>Ley 1581 de 2012</strong> y el <strong>Decreto 1377 de 2013</strong>.
+                El titular podrá ejercer sus derechos de acceso, corrección y supresión
+                escribiendo a: <strong>ghmip2026@gmail.com</strong>
+            </p>
+            <p style='font-size:13px; color:#555; margin-top:16px; text-align:center;'>
+                Al hacer clic en <em>"Acepto y Continuar"</em> confirmo que he leído y entendido
+                esta autorización.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("Acepto y Continuar", use_container_width=True):
+                st.session_state.paso = 1
+                st.rerun()
+        with col_b:
+            if st.button("No Acepto / Salir", use_container_width=True):
+                st.warning("Debes aceptar la autorización para continuar con el registro.")
+
+    elif st.session_state.paso == 1:
+
+        st.markdown(f"""
+            <div style='background-color:#E3F2FD; border-left:5px solid #1E88E5;
+                        padding:12px 16px; border-radius:6px; margin-bottom:1rem;'>
+                📋 <strong>TEMA ACTUAL:</strong> {tema_actual}
+            </div>
+        """, unsafe_allow_html=True)
+
+        df_maestro = obtener_datos()
+
+        with st.form("form_cedula"):
+            cedula_input = st.text_input(
+                "Por favor, ingresa tu Cédula:",
+                placeholder="Escribe tu número de cédula y presiona Buscar"
+            ).strip()
+            buscar = st.form_submit_button("🔍 Buscar", use_container_width=True)
+
+        if buscar and cedula_input:
+            st.session_state.cedula_buscada = cedula_input
+
+        cedula = st.session_state.get("cedula_buscada", "")
+
+        if cedula:
+            res = (
+                df_maestro[df_maestro["ID"].astype(str) == cedula]
+                if df_maestro is not None else pd.DataFrame()
+            )
+
+            if not res.empty:
+                st.session_state.persona = res.iloc[0].to_dict()
+                st.session_state.cedula  = cedula
+                st.success(f"✅ Hola, **{st.session_state.persona['Apellidos y Nombres']}**. ¡Bienvenido!")
+                if st.button("Continuar al registro ➡️", use_container_width=True):
+                    st.session_state.cedula_buscada = None
+                    st.session_state.paso = 2
+                    st.rerun()
+
+            else:
+                st.warning("⚠️ Cédula no encontrada. Si eres contratista o personal nuevo, regístrate:")
+                with st.form("registro_nuevo_empleado"):
+                    nombre_nuevo         = st.text_input("Nombres y Apellidos Completos:")
+                    empresa_seleccionada = st.selectbox(
+                        "Empresa:", ["MIP", "TEMPORAL / CONTRATISTA"]
+                    )
+                    empresa_externa = ""
+                    if empresa_seleccionada == "TEMPORAL / CONTRATISTA":
+                        empresa_externa = st.text_input("¿A qué empresa perteneces?")
+                    cargo_nuevo = st.text_input("Tu Cargo:")
+
+                    if st.form_submit_button("Registrarme y Continuar ➡️", use_container_width=True):
+                        if nombre_nuevo and cargo_nuevo:
+                            nom_emp = (
+                                empresa_externa.upper()
+                                if empresa_seleccionada == "TEMPORAL / CONTRATISTA" and empresa_externa
+                                else empresa_seleccionada
+                            )
+                            st.session_state.persona = {
+                                "Apellidos y Nombres": nombre_nuevo.upper(),
+                                "Empresa": nom_emp,
+                                "Cargo":   cargo_nuevo.upper(),
+                            }
+                            st.session_state.cedula = cedula
+                            st.session_state.cedula_buscada = None
+                            st.session_state.paso   = 2
+                            st.rerun()
+                        else:
+                            st.error("Completa todos los campos.")
+
+    elif st.session_state.paso == 2:
+        st.markdown("### Captura de Identidad")
+        st.markdown("<p style='color:#555;'>Tómate una foto para validar tu identidad.</p>",
+                    unsafe_allow_html=True)
+        foto = st.camera_input("Foto de validación")
+        if foto:
+            st.session_state.foto_data = foto
+            if st.button("Ir a la firma"):
+                st.session_state.paso = 3
+                st.rerun()
+
+    elif st.session_state.paso == 3:
+    
+        st.markdown("### Firma Digital")
+        st.markdown(
+            "<p style='color:#555;'>Dibuja tu firma en el recuadro blanco.</p>",
+            unsafe_allow_html=True
+        )
+    
+        canvas_res = st_canvas(
+            stroke_width=3,
+            stroke_color="#0A2A43",
+            background_color="#ffffff",
+            height=180,
+            width=350,
+            key="firma_final"
+        )
+    
+        if st.button("ENVIAR ✅"):
+    
+            if canvas_res.image_data is None:
+                st.warning("Debe firmar antes de continuar.")
+                st.stop()
+    
+            alpha = canvas_res.image_data[:, :, 3]
+    
+            if int(alpha.sum()) < 3000:
+                st.warning("Debe firmar antes de continuar.")
+                st.stop()
+    
+            datos_asistencia = {
+                "Fecha": datetime.now(pytz.timezone("America/Bogota")).strftime("%d/%m/%Y %H:%M:%S"),
+                "ID": st.session_state.cedula,
+                "Nombre": st.session_state.persona["Apellidos y Nombres"],
+                "Empresa": st.session_state.persona.get("Empresa", "NO REGISTRA"),
+                "Cargo": st.session_state.persona.get("Cargo", "NO REGISTRA"),
+                "Tema": tema_actual,
+                "Resumen": st.session_state.get("resumen_actual", ""),
+                "Tipo":    tipo_actividad,
+            }    
+    
+            with st.spinner("Guardando registro..."):
+                guardado = guardar_en_google_sheets(datos_asistencia)
+    
+            if guardado:
+    
+                with st.spinner("Generando certificado..."):
+    
+                    foto_comprimida = None
+    
+                    if st.session_state.get("foto_data"):
+                        try:
+                            img_raw = Image.open(
+                                st.session_state.get("foto_data")
+                            ).convert("RGB")
+    
+                            img_raw.thumbnail((160, 160))
+    
+                            buf_foto = BytesIO()
+    
+                            img_raw.save(
+                                buf_foto,
+                                format="JPEG",
+                                quality=75,
+                                optimize=True
+                            )
+    
+                            buf_foto.seek(0)
+    
+                            foto_comprimida = buf_foto
+    
+                        except Exception as ex:
+                            print(f"[FOTO ERROR] {ex}")
+    
+                    firma_img = None
+    
+                    try:
+                        firma_rgba = Image.fromarray(
+                            canvas_res.image_data.astype("uint8"),
+                            "RGBA"
+                        )
+                        
+                        firma_img = Image.new("RGB", firma_rgba.size, "white")
+                        firma_img.paste(firma_rgba, mask=firma_rgba.split()[3])
+    
+                    except Exception as ex:
+                        print(f"[FIRMA ERROR] {ex}")
+                        
+                    pdf = generar_pdf(
+                        datos_asistencia,
+                        firma_img,
+                        foto_comprimida,
+                    )
+
+                try:
+                
+                    fecha_archivo = datetime.now().strftime(
+                        "%Y%m%d_%H%M%S"
+                    )
+                
+                    nombre_pdf = (
+                        f"Certificado_{datos_asistencia['ID']}_{fecha_archivo}.pdf"
+                    )
+                
+                    pdf.seek(0)
+                
+                    archivo_drive = subir_pdf_drive(
+                        pdf,
+                        nombre_pdf
+                    )
+                
+                    if archivo_drive:
+                
+                        print("✅ PDF subido a Drive")
+                
+                        datos_asistencia["LinkPDF"] = archivo_drive.get(
+                            "webViewLink",
+                            ""
+                        )
+                
+                except Exception as ex:
+                
+                    print(f"[DRIVE ERROR] {ex}")
+                
+                pdf.seek(0)
+                
+                pdf_bytes = pdf.getvalue()
+
+                try:
+                
+                    nombre_archivo_pdf = (
+                        f"{datos_asistencia['Tema']}_"
+                        f"{datos_asistencia['ID']}_"
+                        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                    )
+                
+                    nombre_archivo_pdf = (
+                        nombre_archivo_pdf
+                        .replace("/", "_")
+                        .replace("\\", "_")
+                        .replace(":", "_")
+                    )
+                
+                    ruta_pdf = os.path.join(
+                        CARPETA_CERTIFICADOS,
+                        nombre_archivo_pdf
+                    )
+                
+                    with open(ruta_pdf, "wb") as f:
+                        f.write(pdf_bytes)
+                
+                    print(f"✅ PDF guardado localmente: {ruta_pdf}")
+                
+                    datos_asistencia["RutaPDF"] = ruta_pdf
+                
+                except Exception as ex:
+                
+                    print(f"❌ ERROR guardando PDF local: {ex}")
+                
+                enviar_respaldo_async(
+                    datos_asistencia,
+                    pdf_bytes
+                )
+                
+                st.session_state.pdf_doc = pdf_bytes
+                st.session_state.paso = 4
+                
+                st.rerun()
+
+    elif st.session_state.paso == 4:
+        st.markdown("""
+            <div style='background-color:#E3F2FD; border:2px solid #1E88E5;
+                        padding:20px; border-radius:10px; text-align:center;'>
+                <h2 style='color:#0A2A43;'>¡Gracias por participar!</h2>
+                <p>Tu asistencia ha sido registrada correctamente.</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        if st.session_state.get("pdf_doc"):
+
+            st.download_button(
+                "Descargar mi Certificado (PDF)",
+                st.session_state.pdf_doc,
+                f"Certificado_{st.session_state.cedula}.pdf",
+                "application/pdf"
+            )
+
+        if st.button("Realizar otro registro", use_container_width=True):
+            for key in ["cedula", "persona", "pdf_doc", "foto_data",
+                        "cedula_input", "firma_final", "correo_enviado"]:
+                st.session_state.pop(key, None)
+            st.session_state.paso   = 0
+            st.session_state.modulo = "registro_asistencia"
+            st.rerun()
