@@ -316,7 +316,7 @@ if rol_url and st.session_state.rol is None:
 @st.cache_resource(show_spinner=False)
 def cargar_logos():
     logos = {}
-    for clave, ruta in [("mip", "Logo_Mip-1.png")]:
+    for clave, ruta in [("mip", "Logo_Mip_blanco.png")]:
         if os.path.exists(ruta):
             logos[clave] = Image.open(ruta).copy()
     return logos
