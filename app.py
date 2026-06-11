@@ -304,18 +304,12 @@ st.markdown("""
 .main .block-container {
     max-width: 100% !important;
     width: 100% !important;
-
     padding-top: 1rem !important;
     padding-bottom: 1rem !important;
-
     padding-left: 1.8rem !important;
     padding-right: 1.8rem !important;
-
-    background: rgba(255,255,255,0.78) !important;
-
-    backdrop-filter: blur(2px) !important;
-
-    border-radius: 18px !important;
+    background: transparent !important;
+    border-radius: 0 !important;
 }
 
 section.main > div {
