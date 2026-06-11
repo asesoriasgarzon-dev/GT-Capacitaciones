@@ -353,8 +353,27 @@ section.main > div {
     }
 }
 
-</style>
-""", unsafe_allow_html=True)
+/* ==========================================================
+       QUITAR BARRA SUPERIOR DE STREAMLIT
+       ========================================================== */
+    [data-testid="stHeader"] {
+        background: transparent !important;
+        height: 0 !important;
+    }
+
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+
+    /* Elimina el espacio que deja la barra */
+    .stApp > header {
+        background: transparent !important;
+        height: 0 !important;
+    }
+
+    </style>
+"""
+st.markdown(CSS_CORPORATIVO, unsafe_allow_html=True)
 
 # =============================================================================
 # CONEXIÓN A DATOS
