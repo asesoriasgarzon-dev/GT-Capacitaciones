@@ -61,9 +61,6 @@ CSS_CORPORATIVO = """
         font-family: 'Century Gothic', 'CenturyGothic', 'Nunito', 'Apple Gothic', sans-serif !important;
     }
 
-    /* ==========================================================
-       FONDO PRINCIPAL
-       ========================================================== */
     .stApp { 
         background-color: #F7FAFC !important;
         position: relative !important;
@@ -90,9 +87,6 @@ CSS_CORPORATIVO = """
         z-index: 1 !important;
     }
 
-    /* ==========================================================
-       SIDEBAR
-       ========================================================== */
     [data-testid="stSidebar"] {
         background-color: #0A2A43 !important;
     }
@@ -101,58 +95,31 @@ CSS_CORPORATIVO = """
         color: #FFFFFF !important;
     }
 
-    /* ==========================================================
-       BOTONES
-       ========================================================== */
     .stButton > button {
-        background: linear-gradient(
-            135deg,
-            #0A2A43,
-            #1565C0,
-            #1E88E5
-        ) !important;
-
+        background: linear-gradient(135deg, #0A2A43, #1565C0, #1E88E5) !important;
         color: white !important;
         border: none !important;
         border-radius: 10px !important;
-
         font-weight: 900 !important;
         font-size: 18px !important;
-
         padding: 0.70rem 1.50rem !important;
-
         letter-spacing: 1px !important;
         text-transform: uppercase !important;
-
-        box-shadow:
-            0 8px 18px rgba(30,136,229,.25) !important;
-
+        box-shadow: 0 8px 18px rgba(30,136,229,.25) !important;
         transition: all .25s ease !important;
     }
 
     .stButton > button:hover {
-        transform: translateY(-2px);
-        background: linear-gradient(
-            135deg,
-            #1E88E5,
-            #42A5F5
-        ) !important;
-
+        background: linear-gradient(135deg, #1E88E5, #42A5F5) !important;
         color: white !important;
     }
 
-    /* ==========================================================
-       TITULOS
-       ========================================================== */
     h1, h2, h3 {
         color: #0A2A43 !important;
         font-weight: 800 !important;
         letter-spacing: 1px !important;
     }
 
-    /* ==========================================================
-       INPUTS
-       ========================================================== */
     .stTextInput > div > div > input {
         border: 2px solid #1E88E5 !important;
         border-radius: 8px !important;
@@ -163,9 +130,6 @@ CSS_CORPORATIVO = """
         box-shadow: 0 0 0 3px rgba(66,165,245,0.25) !important;
     }
 
-    /* ==========================================================
-       MÉTRICAS
-       ========================================================== */
     [data-testid="stMetricValue"] {
         color: #1565C0 !important;
         font-weight: bold !important;
@@ -174,18 +138,10 @@ CSS_CORPORATIVO = """
     [data-testid="metric-container"] {
         border-radius: 14px !important;
         padding: 1rem !important;
-
         background: rgba(255,255,255,0.95) !important;
-
-        backdrop-filter: blur(6px);
-
-        box-shadow:
-            0 2px 12px rgba(0,0,0,0.08) !important;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08) !important;
     }
 
-    /* ==========================================================
-       TABS
-       ========================================================== */
     .stTabs [data-baseweb="tab"] {
         color: #0A2A43 !important;
         font-weight: bold !important;
@@ -196,19 +152,10 @@ CSS_CORPORATIVO = """
         color: #1565C0 !important;
     }
 
-    /* ==========================================================
-       DOWNLOAD BUTTON
-       ========================================================== */
     .stDownloadButton > button {
-        background: linear-gradient(
-            135deg,
-            #42A5F5,
-            #1E88E5
-        ) !important;
-
+        background: linear-gradient(135deg, #42A5F5, #1E88E5) !important;
         color: white !important;
         font-weight: bold !important;
-
         border: none !important;
         border-radius: 8px !important;
     }
@@ -218,9 +165,6 @@ CSS_CORPORATIVO = """
         color: white !important;
     }
 
-    /* ==========================================================
-       HERO LOGOS
-       ========================================================== */
     .hero-logos {
         display: flex;
         justify-content: space-between;
@@ -237,38 +181,20 @@ CSS_CORPORATIVO = """
         object-fit: contain !important;
     }
 
-    /* ==========================================================
-       BANNER PRINCIPAL
-       ========================================================== */
     .hero-gerencia {
-        background: linear-gradient(
-            135deg,
-            #0A2A43,
-            #1565C0,
-            #42A5F5
-        ) !important;
-
+        background: linear-gradient(135deg, #0A2A43, #1565C0, #42A5F5) !important;
         border-radius: 26px !important;
-
         padding: 28px 25px !important;
-
         margin-bottom: 20px !important;
-
         text-align: center !important;
-
-        box-shadow:
-            0 18px 40px rgba(0,0,0,.16) !important;
+        box-shadow: 0 18px 40px rgba(0,0,0,.16) !important;
     }
 
     .hero-gerencia h1 {
         color: white !important;
-
         margin: 10px 0 0 0 !important;
-
         font-size: 32px !important;
-
         font-weight: 800 !important;
-
         letter-spacing: 1px !important;
     }
 
@@ -292,6 +218,20 @@ CSS_CORPORATIVO = """
 
     footer {
         visibility: hidden;
+    }
+
+    [data-testid="stHeader"] {
+        background: transparent !important;
+        height: 0 !important;
+    }
+
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+
+    .stApp > header {
+        background: transparent !important;
+        height: 0 !important;
     }
 
 </style>
@@ -329,52 +269,19 @@ section.main > div {
 }
 
 @media (max-width: 768px) {
-
     .main .block-container {
         padding-left: 0.6rem !important;
         padding-right: 0.6rem !important;
         padding-top: 0.5rem !important;
     }
-
-    h1 {
-        font-size: 1.6rem !important;
-    }
-
-    h2 {
-        font-size: 1.3rem !important;
-    }
-
-    .stButton > button {
-        width: 100% !important;
-    }
-
-    [data-testid="metric-container"] {
-        padding: 0.8rem !important;
-    }
+    h1 { font-size: 1.6rem !important; }
+    h2 { font-size: 1.3rem !important; }
+    .stButton > button { width: 100% !important; }
+    [data-testid="metric-container"] { padding: 0.8rem !important; }
 }
 
-/* ==========================================================
-       QUITAR BARRA SUPERIOR DE STREAMLIT
-       ========================================================== */
-    [data-testid="stHeader"] {
-        background: transparent !important;
-        height: 0 !important;
-    }
-
-    [data-testid="stToolbar"] {
-        display: none !important;
-    }
-
-    /* Elimina el espacio que deja la barra */
-    .stApp > header {
-        background: transparent !important;
-        height: 0 !important;
-    }
-
-    </style>
-"""
-st.markdown(CSS_CORPORATIVO, unsafe_allow_html=True)
-
+</style>
+""", unsafe_allow_html=True)
 # =============================================================================
 # CONEXIÓN A DATOS
 # =============================================================================
