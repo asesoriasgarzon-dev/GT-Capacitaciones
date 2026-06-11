@@ -64,22 +64,27 @@ CSS_CORPORATIVO = """
     /* ==========================================================
        FONDO PRINCIPAL
        ========================================================== */
-    .stApp {
-
+    .stApp { 
         background-color: #F7FAFC !important;
-    
-        background-image:
-            url("https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/campo_mip.png") !important;
-    
-        background-repeat: no-repeat !important;
-    
-        background-position: center center !important;
-    
-        background-size: 1000px !important;
-    
-        background-attachment: fixed !important;
+        position: relative !important;
     }
-    /* Mantener contenido encima del fondo */
+
+    .stApp::before {
+        content: '' !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background-image: url('https://raw.githubusercontent.com/asesoriasgarzon-dev/GT-Capacitaciones/main/campo_mip.png') !important;
+        background-size: cover !important;
+        background-position: center center !important;
+        background-repeat: no-repeat !important;
+        opacity: 0.25 !important;
+        z-index: 0 !important;
+        pointer-events: none !important;
+    }
+
     .stApp > * {
         position: relative !important;
         z-index: 1 !important;
