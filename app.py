@@ -920,7 +920,7 @@ if st.session_state.rol == "Admin":
             st.markdown("---")
             st.markdown("### 🔗 Enlace de Acceso")
 
-            base_url = "https://asistencias-mip.streamlit.app/"
+            base_url = "https://gt-capacitaciones.streamlit.app/"
 
             tema_url = quote(st.session_state.tema_actual)
             resumen_url = comprimir_resumen(st.session_state.get("resumen_actual", ""))
